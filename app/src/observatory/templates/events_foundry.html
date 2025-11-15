@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foundry Events - WOS Alliance Observatory</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">WOS Alliance Observatory</h1>
+            <div class="nav-links">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/roster">Player Roster</a>
+                <a href="/upload">Upload Screenshots</a>
+                <a href="#" id="logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Foundry Battle Events</h2>
+
+        <div class="events-container">
+            <div class="filter-section">
+                <label for="legionFilter">Filter by Legion:</label>
+                <select id="legionFilter">
+                    <option value="all">All Legions</option>
+                    <option value="1">Legion 1</option>
+                    <option value="2">Legion 2</option>
+                </select>
+            </div>
+
+            <div id="eventsContainer">
+                <p style="text-align: center; padding: 20px;">Loading foundry events...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        document.getElementById('logout').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        });
+
+        let allEvents = [];
+
+        async function loadFoundryEvents() {
+            try {
+                const response = await fetch('/api/events/foundry', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.removeItem('access_token');
+                        window.location.href = '/';
+                        return;
+                    }
+                    throw new Error('Failed to load events');
+                }
+
+                const data = await response.json();
+                allEvents = data.events;
+                renderEvents();
+            } catch (error) {
+                console.error('Failed to load foundry events:', error);
+                document.getElementById('eventsContainer').innerHTML =
+                    '<p style="text-align: center; padding: 20px; color: red;">Failed to load events</p>';
+            }
+        }
+
+        function renderEvents() {
+            const legionFilter = document.getElementById('legionFilter').value;
+            const filteredEvents = legionFilter === 'all'
+                ? allEvents
+                : allEvents.filter(e => e.legion_number.toString() === legionFilter);
+
+            const container = document.getElementById('eventsContainer');
+
+            if (filteredEvents.length === 0) {
+                container.innerHTML = '<p style="text-align: center; padding: 20px;">No foundry events found</p>';
+                return;
+            }
+
+            container.innerHTML = filteredEvents.map(event => `
+                <div class="event-card">
+                    <div class="event-header">
+                        <h3>Legion ${event.legion_number} - ${new Date(event.event_date).toLocaleDateString()}</h3>
+                        <span class="event-stats">
+                            ${event.actual_participants}/${event.max_participants} participants
+                            ${event.total_troop_power ? `| ${event.total_troop_power.toLocaleString()} power` : ''}
+                            ${event.won !== null ? (event.won ? ' | <span style="color: green;">Won</span>' : ' | <span style="color: red;">Lost</span>') : ''}
+                        </span>
+                    </div>
+                    <div class="event-time">
+                        Event Date: ${new Date(event.event_date).toLocaleDateString()}
+                        ${event.total_score ? `| Total Score: ${event.total_score.toLocaleString()}` : ''}
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <strong>Signups:</strong> ${event.signups_count} players
+                        ${event.results_count > 0 ? `| <strong>Results:</strong> ${event.results_count} players participated` : ''}
+                    </div>
+                    ${event.top_results && event.top_results.length > 0 ? `
+                        <div class="event-scores">
+                            <h4>Top Performers (${event.results_count} total)</h4>
+                            <table class="scores-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Player</th>
+                                        <th>Arsenal Points</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${event.top_results.map(score => `
+                                        <tr>
+                                            <td>${score.rank || '-'}</td>
+                                            <td>${score.player_name}</td>
+                                            <td>${score.score.toLocaleString()}</td>
+                                        </tr>
+                                    `).join('')}
+                                    ${event.results_count > 10 ? `
+                                        <tr>
+                                            <td colspan="3" style="text-align: center; color: #666; font-style: italic;">
+                                                ... and ${event.results_count - 10} more players
+                                            </td>
+                                        </tr>
+                                    ` : ''}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : '<p style="color: #666; font-style: italic;">No results recorded</p>'}
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('legionFilter').addEventListener('change', renderEvents);
+        loadFoundryEvents();
+    </script>
+</body>
+</html>

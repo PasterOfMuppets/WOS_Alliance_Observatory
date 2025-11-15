@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WOS Alliance Observatory - Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="login-box">
+            <h1>WOS Alliance Observatory</h1>
+            <p class="subtitle">Track your alliance progress and stats</p>
+
+            <div id="error-message" class="error hidden"></div>
+            <div id="success-message" class="success hidden"></div>
+
+            <div id="login-form-container">
+                <h2>Login</h2>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit">Login</button>
+                </form>
+                <p class="switch-form">Don't have an account? <a href="#" id="show-register">Register</a></p>
+            </div>
+
+            <div id="register-form-container" class="hidden">
+                <h2>Register</h2>
+                <form id="register-form">
+                    <div class="form-group">
+                        <label for="reg-username">Username</label>
+                        <input type="text" id="reg-username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">Email (optional)</label>
+                        <input type="email" id="reg-email" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Password</label>
+                        <input type="password" id="reg-password" name="password" required>
+                    </div>
+                    <button type="submit">Register</button>
+                </form>
+                <p class="switch-form">Already have an account? <a href="#" id="show-login">Login</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const loginFormContainer = document.getElementById('login-form-container');
+        const registerFormContainer = document.getElementById('register-form-container');
+        const showRegisterLink = document.getElementById('show-register');
+        const showLoginLink = document.getElementById('show-login');
+        const errorMessage = document.getElementById('error-message');
+        const successMessage = document.getElementById('success-message');
+
+        showRegisterLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            loginFormContainer.classList.add('hidden');
+            registerFormContainer.classList.remove('hidden');
+            clearMessages();
+        });
+
+        showLoginLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            registerFormContainer.classList.add('hidden');
+            loginFormContainer.classList.remove('hidden');
+            clearMessages();
+        });
+
+        function clearMessages() {
+            errorMessage.classList.add('hidden');
+            successMessage.classList.add('hidden');
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+            successMessage.classList.add('hidden');
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+        }
+
+        // Login form submit
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessages();
+
+            const formData = new FormData();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('password', document.getElementById('password').value);
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Store token
+                    localStorage.setItem('access_token', data.access_token);
+                    // Redirect to dashboard
+                    window.location.href = '/dashboard';
+                } else {
+                    showError(data.detail || 'Login failed');
+                }
+            } catch (error) {
+                showError('Network error. Please try again.');
+            }
+        });
+
+        // Register form submit
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessages();
+
+            const formData = new FormData();
+            formData.append('username', document.getElementById('reg-username').value);
+            formData.append('password', document.getElementById('reg-password').value);
+            const email = document.getElementById('reg-email').value;
+            if (email) {
+                formData.append('email', email);
+            }
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess('Registration successful! Please login.');
+                    setTimeout(() => {
+                        registerFormContainer.classList.add('hidden');
+                        loginFormContainer.classList.remove('hidden');
+                    }, 1500);
+                } else {
+                    showError(data.detail || 'Registration failed');
+                }
+            } catch (error) {
+                showError('Network error. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html>

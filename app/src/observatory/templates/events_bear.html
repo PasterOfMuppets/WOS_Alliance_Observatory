@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bear Events - WOS Alliance Observatory</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">WOS Alliance Observatory</h1>
+            <div class="nav-links">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/roster">Player Roster</a>
+                <a href="/upload">Upload Screenshots</a>
+                <a href="#" id="logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Bear Trap Events</h2>
+
+        <div class="events-container">
+            <div class="filter-section">
+                <label for="trapFilter">Filter by Trap:</label>
+                <select id="trapFilter">
+                    <option value="all">All Traps</option>
+                    <option value="1">Trap 1</option>
+                    <option value="2">Trap 2</option>
+                </select>
+            </div>
+
+            <div id="eventsContainer">
+                <p style="text-align: center; padding: 20px;">Loading bear events...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        document.getElementById('logout').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        });
+
+        let allEvents = [];
+
+        async function loadBearEvents() {
+            try {
+                const response = await fetch('/api/events/bear', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.removeItem('access_token');
+                        window.location.href = '/';
+                        return;
+                    }
+                    throw new Error('Failed to load events');
+                }
+
+                const data = await response.json();
+                allEvents = data.events;
+                renderEvents();
+            } catch (error) {
+                console.error('Failed to load bear events:', error);
+                document.getElementById('eventsContainer').innerHTML =
+                    '<p style="text-align: center; padding: 20px; color: red;">Failed to load events</p>';
+            }
+        }
+
+        function renderEvents() {
+            const trapFilter = document.getElementById('trapFilter').value;
+            const filteredEvents = trapFilter === 'all'
+                ? allEvents
+                : allEvents.filter(e => e.trap_id.toString() === trapFilter);
+
+            const container = document.getElementById('eventsContainer');
+
+            if (filteredEvents.length === 0) {
+                container.innerHTML = '<p style="text-align: center; padding: 20px;">No bear events found</p>';
+                return;
+            }
+
+            container.innerHTML = filteredEvents.map(event => `
+                <div class="event-card">
+                    <div class="event-header">
+                        <h3>Trap ${event.trap_id} - ${new Date(event.started_at).toLocaleDateString()}</h3>
+                        <span class="event-stats">
+                            ${event.rally_count ? `${event.rally_count} rallies` : ''}
+                            ${event.total_damage ? `| ${event.total_damage.toLocaleString()} total damage` : ''}
+                        </span>
+                    </div>
+                    <div class="event-time">
+                        Started: ${new Date(event.started_at).toLocaleString()}
+                        ${event.ended_at ? `| Ended: ${new Date(event.ended_at).toLocaleString()}` : ''}
+                    </div>
+                    ${event.scores && event.scores.length > 0 ? `
+                        <div class="event-scores">
+                            <h4>Top Performers (${event.scores.length} players)</h4>
+                            <table class="scores-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Player</th>
+                                        <th>Damage</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${event.scores.slice(0, 10).map(score => `
+                                        <tr>
+                                            <td>${score.rank || '-'}</td>
+                                            <td>${score.player_name}</td>
+                                            <td>${score.score.toLocaleString()}</td>
+                                        </tr>
+                                    `).join('')}
+                                    ${event.scores.length > 10 ? `
+                                        <tr>
+                                            <td colspan="3" style="text-align: center; color: #666; font-style: italic;">
+                                                ... and ${event.scores.length - 10} more players
+                                            </td>
+                                        </tr>
+                                    ` : ''}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : '<p style="color: #666; font-style: italic;">No scores recorded</p>'}
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('trapFilter').addEventListener('change', renderEvents);
+        loadBearEvents();
+    </script>
+</body>
+</html>

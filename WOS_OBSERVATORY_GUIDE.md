@@ -634,6 +634,92 @@ Built using:
 
 ---
 
+## Web Interface
+
+The WOS Alliance Observatory now includes a complete web interface for easy access to all data!
+
+### Accessing the Web UI
+
+**URL:** `http://localhost:7500/`
+
+**Default Login:**
+- Username: `admin`
+- Password: `admin`
+
+### Web Features
+
+**1. Authentication System**
+- User registration and login
+- JWT-based authentication
+- Secure password hashing
+
+**2. Dashboard** (`/dashboard`)
+- Quick access to all features
+- Welcome message with user info
+- Navigation cards for all sections
+
+**3. Player Roster** (`/roster`)
+- View all active players sorted by power
+- Current power and furnace levels
+- Interactive historical charts (Chart.js)
+- Click "View History" for power/furnace trends over time
+
+**4. Bear Events** (`/events/bear`)
+- View all bear trap events
+- Filter by Trap 1 or Trap 2
+- See rally counts, total damage
+- Top performers per event
+
+**5. Foundry Events** (`/events/foundry`)
+- View all foundry battles
+- Filter by Legion 1 or Legion 2
+- Signup counts, participation rates
+- Top arsenal point scorers
+- Win/loss tracking
+
+**6. Alliance Championship** (`/events/ac`)
+- Weekly AC signup history
+- Total registered and power
+- Participation tracking
+
+**7. Contribution Tracking** (`/events/contribution`)
+- Weekly contribution snapshots
+- Multiple snapshots per week
+- Track cumulative progress
+- Identify low contributors
+
+**8. Screenshot Upload** (`/upload`)
+- Drag-and-drop file upload
+- Multi-file selection
+- Bulk upload support
+- Files saved to `/app/uploads`
+- (Auto-processing to be added in future)
+
+### API Endpoints
+
+All data accessible via REST API:
+- `POST /api/login` - User authentication
+- `POST /api/register` - User registration
+- `GET /api/me` - Current user info
+- `GET /api/players` - Player roster
+- `GET /api/players/{id}/history` - Historical data
+- `GET /api/events/bear` - Bear events
+- `GET /api/events/foundry` - Foundry events
+- `GET /api/events/ac` - AC events
+- `GET /api/events/contribution` - Contribution snapshots
+- `POST /api/upload/screenshots` - Bulk upload
+
+### Creating Additional Users
+
+Run the script to create new users:
+```bash
+docker compose exec app python3 /app/scripts/create_test_user.py
+```
+
+Or modify the script to create custom users with different credentials.
+
+---
+
 ## Summary
 
 The WOS Alliance Observatory provides comprehensive tracking for:
@@ -643,7 +729,10 @@ The WOS Alliance Observatory provides comprehensive tracking for:
 - ✅ Alliance Championship signups
 - ✅ Weekly contribution snapshots
 - ✅ Alliance power rankings (competitive landscape)
+- ✅ **Complete web interface for data viewing and management**
+- ✅ **User authentication and access control**
+- ✅ **Interactive charts and historical data visualization**
 
 **Total Events Tracked:** 100+ members, 23 bear scores, 48 foundry records, 81 AC signups, 10 alliance rankings
 
-The system is production-ready and extensible for future event types!
+The system is production-ready with both CLI scripts and web interface!

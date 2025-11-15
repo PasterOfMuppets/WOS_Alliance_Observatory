@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AC Events - WOS Alliance Observatory</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">WOS Alliance Observatory</h1>
+            <div class="nav-links">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/roster">Player Roster</a>
+                <a href="/upload">Upload Screenshots</a>
+                <a href="#" id="logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Alliance Championship Events</h2>
+
+        <div class="events-container">
+            <div id="eventsContainer">
+                <p style="text-align: center; padding: 20px;">Loading AC events...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        document.getElementById('logout').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        });
+
+        async function loadACEvents() {
+            try {
+                const response = await fetch('/api/events/ac', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.removeItem('access_token');
+                        window.location.href = '/';
+                        return;
+                    }
+                    throw new Error('Failed to load events');
+                }
+
+                const data = await response.json();
+                const container = document.getElementById('eventsContainer');
+
+                if (data.events.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; padding: 20px;">No AC events found</p>';
+                    return;
+                }
+
+                container.innerHTML = data.events.map(event => `
+                    <div class="event-card">
+                        <div class="event-header">
+                            <h3>Week of ${new Date(event.week_start_date).toLocaleDateString()}</h3>
+                            <span class="event-stats">
+                                ${event.total_registered} registered
+                                ${event.total_power ? `| ${event.total_power.toLocaleString()} total power` : ''}
+                            </span>
+                        </div>
+                        <div class="event-time">
+                            Week Start: ${new Date(event.week_start_date).toLocaleDateString()} (Monday)
+                        </div>
+                        <div>
+                            <strong>Signups Recorded:</strong> ${event.signups_count} players
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load AC events:', error);
+                document.getElementById('eventsContainer').innerHTML =
+                    '<p style="text-align: center; padding: 20px; color: red;">Failed to load events</p>';
+            }
+        }
+
+        loadACEvents();
+    </script>
+</body>
+</html>

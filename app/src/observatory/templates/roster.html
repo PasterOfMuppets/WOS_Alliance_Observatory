@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Roster - WOS Alliance Observatory</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">WOS Alliance Observatory</h1>
+            <div class="nav-links">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/roster" class="active">Player Roster</a>
+                <a href="/upload">Upload Screenshots</a>
+                <a href="#" id="logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Player Roster</h2>
+
+        <div class="table-container">
+            <table class="player-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Player Name</th>
+                        <th>Current Power</th>
+                        <th>Furnace Level</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="playerTableBody">
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 20px;">Loading players...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal for player history -->
+    <div id="historyModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="playerName"></h2>
+            <div class="charts-container">
+                <div class="chart-box">
+                    <h3>Power History</h3>
+                    <canvas id="powerChart"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>Furnace History</h3>
+                    <canvas id="furnaceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        document.getElementById('logout').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        });
+
+        let powerChart = null;
+        let furnaceChart = null;
+
+        // Load players from API
+        async function loadPlayers() {
+            try {
+                const response = await fetch('/api/players', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.removeItem('access_token');
+                        window.location.href = '/';
+                        return;
+                    }
+                    throw new Error('Failed to load players');
+                }
+
+                const data = await response.json();
+                const tbody = document.getElementById('playerTableBody');
+
+                if (data.players.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">No players found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.players.map((player, index) => `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${player.name}</td>
+                        <td>${player.current_power ? player.current_power.toLocaleString() : 'N/A'}</td>
+                        <td>${player.current_furnace || 'N/A'}</td>
+                        <td><span class="status-badge status-${player.status}">${player.status}</span></td>
+                        <td>
+                            <button class="btn-small" onclick="viewPlayerHistory(${player.id}, '${player.name}')">View History</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load players:', error);
+                const tbody = document.getElementById('playerTableBody');
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: red;">Failed to load players</td></tr>';
+            }
+        }
+
+        loadPlayers();
+
+        async function viewPlayerHistory(playerId, playerName) {
+            document.getElementById('playerName').textContent = `${playerName} - Historical Data`;
+            document.getElementById('historyModal').classList.remove('hidden');
+
+            try {
+                const response = await fetch(`/api/players/${playerId}/history`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                // Destroy existing charts
+                if (powerChart) powerChart.destroy();
+                if (furnaceChart) furnaceChart.destroy();
+
+                // Power chart
+                const powerCtx = document.getElementById('powerChart').getContext('2d');
+                powerChart = new Chart(powerCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.power.map(p => new Date(p.date).toLocaleDateString()),
+                        datasets: [{
+                            label: 'Power',
+                            data: data.power.map(p => p.value),
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Furnace chart
+                const furnaceCtx = document.getElementById('furnaceChart').getContext('2d');
+                furnaceChart = new Chart(furnaceCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.furnace.map(f => new Date(f.date).toLocaleDateString()),
+                        datasets: [{
+                            label: 'Furnace Level',
+                            data: data.furnace.map(f => f.value),
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            tension: 0.1,
+                            stepped: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+
+            } catch (error) {
+                alert('Failed to load player history');
+                closeModal();
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        // Close modal on click outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('historyModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>

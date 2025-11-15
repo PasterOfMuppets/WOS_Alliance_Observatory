@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contribution Tracking - WOS Alliance Observatory</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">WOS Alliance Observatory</h1>
+            <div class="nav-links">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/roster">Player Roster</a>
+                <a href="/upload">Upload Screenshots</a>
+                <a href="#" id="logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Weekly Contribution Tracking</h2>
+
+        <div class="events-container">
+            <div id="eventsContainer">
+                <p style="text-align: center; padding: 20px;">Loading contribution data...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        document.getElementById('logout').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        });
+
+        async function loadContributions() {
+            try {
+                const response = await fetch('/api/events/contribution', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.removeItem('access_token');
+                        window.location.href = '/';
+                        return;
+                    }
+                    throw new Error('Failed to load data');
+                }
+
+                const data = await response.json();
+                const container = document.getElementById('eventsContainer');
+
+                if (data.weeks.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; padding: 20px;">No contribution data found</p>';
+                    return;
+                }
+
+                container.innerHTML = data.weeks.map(week => {
+                    // Group snapshots by snapshot date
+                    const snapshotsByDate = {};
+                    week.snapshots.forEach(s => {
+                        if (!snapshotsByDate[s.snapshot_date]) {
+                            snapshotsByDate[s.snapshot_date] = [];
+                        }
+                        snapshotsByDate[s.snapshot_date].push(s);
+                    });
+
+                    return `
+                        <div class="event-card">
+                            <div class="event-header">
+                                <h3>Week of ${new Date(week.week_start).toLocaleDateString()}</h3>
+                                <span class="event-stats">
+                                    ${Object.keys(snapshotsByDate).length} snapshots recorded
+                                </span>
+                            </div>
+                            ${Object.keys(snapshotsByDate).map(date => `
+                                <div style="margin-bottom: 20px;">
+                                    <h4 style="color: #667eea; margin-top: 15px;">
+                                        Snapshot: ${new Date(date).toLocaleDateString()}
+                                    </h4>
+                                    <table class="scores-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Rank</th>
+                                                <th>Player</th>
+                                                <th>Contribution</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${snapshotsByDate[date].slice(0, 20).map(s => `
+                                                <tr>
+                                                    <td>${s.rank || '-'}</td>
+                                                    <td>${s.player_name}</td>
+                                                    <td>${s.contribution.toLocaleString()}</td>
+                                                </tr>
+                                            `).join('')}
+                                            ${snapshotsByDate[date].length > 20 ? `
+                                                <tr>
+                                                    <td colspan="3" style="text-align: center; color: #666; font-style: italic;">
+                                                        ... and ${snapshotsByDate[date].length - 20} more players
+                                                    </td>
+                                                </tr>
+                                            ` : ''}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load contributions:', error);
+                document.getElementById('eventsContainer').innerHTML =
+                    '<p style="text-align: center; padding: 20px; color: red;">Failed to load data</p>';
+            }
+        }
+
+        loadContributions();
+    </script>
+</body>
+</html>

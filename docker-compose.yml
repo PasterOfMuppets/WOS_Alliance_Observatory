@@ -23,7 +23,7 @@ services:
     depends_on:
       - app
     ports:
-      - "8080:80"
+      - "7500:80"
     volumes:
       - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
 

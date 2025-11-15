@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - WOS Alliance Observatory</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">WOS Alliance Observatory</h1>
+            <div class="nav-links">
+                <a href="/dashboard" class="active">Dashboard</a>
+                <a href="/roster">Player Roster</a>
+                <a href="/upload">Upload Screenshots</a>
+                <a href="#" id="logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="welcome-section">
+            <h2 id="welcomeMessage">Welcome!</h2>
+            <p>Your Alliance Observatory Dashboard</p>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>Player Roster</h3>
+                <p>View current stats for all alliance members</p>
+                <a href="/roster" class="btn">View Roster</a>
+            </div>
+
+            <div class="card">
+                <h3>Upload Screenshots</h3>
+                <p>Bulk upload screenshots for automatic processing</p>
+                <a href="/upload" class="btn">Upload</a>
+            </div>
+
+            <div class="card">
+                <h3>Bear Events</h3>
+                <p>View bear trap damage rankings and stats</p>
+                <a href="/events/bear" class="btn">View Events</a>
+            </div>
+
+            <div class="card">
+                <h3>Foundry Battles</h3>
+                <p>Track foundry signups and results</p>
+                <a href="/events/foundry" class="btn">View Events</a>
+            </div>
+
+            <div class="card">
+                <h3>Alliance Championship</h3>
+                <p>View AC signup history and stats</p>
+                <a href="/events/ac" class="btn">View Events</a>
+            </div>
+
+            <div class="card">
+                <h3>Contributions</h3>
+                <p>Track weekly contribution snapshots</p>
+                <a href="/events/contribution" class="btn">View Stats</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        // Fetch user info
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/me', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('welcomeMessage').textContent = `Welcome, ${user.username}!`;
+                } else {
+                    // Token invalid, redirect to login
+                    localStorage.removeItem('access_token');
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Failed to load user info:', error);
+            }
+        }
+
+        loadUserInfo();
+
+        // Logout functionality
+        document.getElementById('logout').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        });
+    </script>
+</body>
+</html>

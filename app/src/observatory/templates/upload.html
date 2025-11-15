@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Screenshots - WOS Alliance Observatory</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">WOS Alliance Observatory</h1>
+            <div class="nav-links">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/roster">Player Roster</a>
+                <a href="/upload" class="active">Upload Screenshots</a>
+                <a href="#" id="logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Upload Screenshots</h2>
+        <p>Select multiple screenshots to upload for automatic processing</p>
+
+        <div class="upload-section">
+            <div class="upload-box" id="uploadBox">
+                <input type="file" id="fileInput" multiple accept="image/*" hidden>
+                <div class="upload-placeholder">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p>Click to select files or drag and drop</p>
+                    <p class="subtitle">Supports JPG, PNG (multiple files)</p>
+                </div>
+            </div>
+
+            <div id="fileList" class="file-list hidden"></div>
+
+            <div id="uploadProgress" class="upload-progress hidden">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p id="progressText">Uploading...</p>
+            </div>
+
+            <button id="uploadBtn" class="btn btn-primary hidden">Upload Files</button>
+        </div>
+
+        <div id="uploadResults" class="upload-results hidden">
+            <h3>Upload Results</h3>
+            <div id="resultsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        document.getElementById('logout').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+        });
+
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const uploadResults = document.getElementById('uploadResults');
+        const resultsList = document.getElementById('resultsList');
+
+        let selectedFiles = [];
+
+        // Click to upload
+        uploadBox.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Drag and drop
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('dragover');
+        });
+
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files);
+            displayFileList();
+        }
+
+        function displayFileList() {
+            if (selectedFiles.length === 0) {
+                fileList.classList.add('hidden');
+                uploadBtn.classList.add('hidden');
+                return;
+            }
+
+            fileList.classList.remove('hidden');
+            uploadBtn.classList.remove('hidden');
+
+            fileList.innerHTML = `
+                <h3>Selected Files (${selectedFiles.length})</h3>
+                <ul>
+                    ${selectedFiles.map(f => `<li>${f.name} (${formatFileSize(f.size)})</li>`).join('')}
+                </ul>
+            `;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+
+            uploadBtn.disabled = true;
+            uploadProgress.classList.remove('hidden');
+            uploadResults.classList.add('hidden');
+
+            const formData = new FormData();
+            selectedFiles.forEach(file => {
+                formData.append('files', file);
+            });
+
+            try {
+                const response = await fetch('/api/upload/screenshots', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    progressFill.style.width = '100%';
+                    progressText.textContent = 'Upload complete!';
+
+                    setTimeout(() => {
+                        uploadProgress.classList.add('hidden');
+                        uploadResults.classList.remove('hidden');
+
+                        resultsList.innerHTML = `
+                            <div class="success-message">
+                                Successfully uploaded ${data.files.length} files
+                            </div>
+                            <ul>
+                                ${data.files.map(f => `<li>${f.filename} - ${formatFileSize(f.size)}</li>`).join('')}
+                            </ul>
+                            <p class="note">Note: Files are currently saved but auto-processing is not yet implemented. They will be processed in a future update.</p>
+                        `;
+
+                        // Reset
+                        selectedFiles = [];
+                        fileInput.value = '';
+                        fileList.classList.add('hidden');
+                        uploadBtn.classList.add('hidden');
+                        uploadBtn.disabled = false;
+                        progressFill.style.width = '0%';
+                    }, 1000);
+                } else {
+                    throw new Error(data.detail || 'Upload failed');
+                }
+            } catch (error) {
+                uploadProgress.classList.add('hidden');
+                alert('Upload failed: ' + error.message);
+                uploadBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
