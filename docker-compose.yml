@@ -1,0 +1,32 @@
+services:
+  app:
+    build:
+      context: ./app
+    image: wos-observatory-app:latest
+    env_file:
+      - .env  # This makes all .env variables available in the container
+    container_name: wos_app
+    environment:
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8000
+    volumes:
+      - ./app/src:/app/src:ro
+      - ./app/scripts:/app/scripts:ro
+      - ./Screenshot_samples:/app/Screenshot_samples:ro
+      - app-data:/data
+    expose:
+      - "8000"
+
+  proxy:
+    image: caddy:2
+    container_name: wos_proxy
+    depends_on:
+      - app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+
+volumes:
+  app-data:
+    driver: local
