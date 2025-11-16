@@ -78,9 +78,10 @@ def add_foundry_signup(
     foundry_power: int,
     voted: bool,
     recorded_at: datetime,
-) -> models.FoundrySignup:
+) -> models.FoundrySignup | None:
     """
     Add a foundry signup record for a player.
+    Skips if a record already exists for this player in this event.
 
     Args:
         session: Database session
@@ -91,8 +92,19 @@ def add_foundry_signup(
         recorded_at: When the screenshot was taken (UTC)
 
     Returns:
-        FoundrySignup model instance
+        FoundrySignup model instance or None if already exists
     """
+    # Check if record already exists
+    stmt = select(models.FoundrySignup).where(
+        models.FoundrySignup.foundry_event_id == foundry_event_id,
+        models.FoundrySignup.player_id == player_id,
+    )
+    existing = session.execute(stmt).scalar_one_or_none()
+
+    if existing:
+        logger.debug(f"Foundry signup already exists for player {player_id} in event {foundry_event_id}")
+        return None
+
     signup = models.FoundrySignup(
         foundry_event_id=foundry_event_id,
         player_id=player_id,
@@ -181,7 +193,7 @@ def save_foundry_signup_ocr(
         voted = player_data.get("voted", False)
 
         # Add foundry signup
-        add_foundry_signup(
+        result = add_foundry_signup(
             session,
             foundry_event_id=foundry_event.id,
             player_id=player.id,
@@ -189,7 +201,8 @@ def save_foundry_signup_ocr(
             voted=voted,
             recorded_at=recorded_at,
         )
-        signup_count += 1
+        if result is not None:
+            signup_count += 1
 
     session.commit()
     logger.info(f"Saved foundry signups: {signup_count} signups for event {foundry_event.id}")
@@ -207,9 +220,10 @@ def add_foundry_result(
     score: int,
     rank: int | None,
     recorded_at: datetime,
-) -> models.FoundryResult:
+) -> models.FoundryResult | None:
     """
     Add a foundry result record for a player.
+    Skips if a record already exists for this player in this event.
 
     Args:
         session: Database session
@@ -220,8 +234,19 @@ def add_foundry_result(
         recorded_at: When the screenshot was taken (UTC)
 
     Returns:
-        FoundryResult model instance
+        FoundryResult model instance or None if already exists
     """
+    # Check if record already exists
+    stmt = select(models.FoundryResult).where(
+        models.FoundryResult.foundry_event_id == foundry_event_id,
+        models.FoundryResult.player_id == player_id,
+    )
+    existing = session.execute(stmt).scalar_one_or_none()
+
+    if existing:
+        logger.debug(f"Foundry result already exists for player {player_id} in event {foundry_event_id}")
+        return None
+
     result = models.FoundryResult(
         foundry_event_id=foundry_event_id,
         player_id=player_id,
@@ -302,7 +327,7 @@ def save_foundry_result_ocr(
         rank = player_data.get("rank")
 
         # Add foundry result
-        add_foundry_result(
+        result = add_foundry_result(
             session,
             foundry_event_id=foundry_event.id,
             player_id=player.id,
@@ -310,7 +335,8 @@ def save_foundry_result_ocr(
             rank=rank,
             recorded_at=recorded_at,
         )
-        result_count += 1
+        if result is not None:
+            result_count += 1
 
     session.commit()
     logger.info(f"Saved foundry results: {result_count} results for event {foundry_event.id}")
