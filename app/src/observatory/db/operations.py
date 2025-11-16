@@ -70,9 +70,10 @@ def add_power_history(
     player_id: int,
     power: int,
     captured_at: datetime,
-) -> models.PlayerPowerHistory:
+) -> models.PlayerPowerHistory | None:
     """
     Add a power history record for a player.
+    Skips if a record already exists for this player at this timestamp.
 
     Args:
         session: Database session
@@ -81,8 +82,19 @@ def add_power_history(
         captured_at: When the screenshot was taken (in UTC)
 
     Returns:
-        PlayerPowerHistory model instance
+        PlayerPowerHistory model instance or None if already exists
     """
+    # Check if record already exists
+    stmt = select(models.PlayerPowerHistory).where(
+        models.PlayerPowerHistory.player_id == player_id,
+        models.PlayerPowerHistory.captured_at == captured_at
+    )
+    existing = session.execute(stmt).scalar_one_or_none()
+
+    if existing:
+        logger.debug(f"Power history already exists for player {player_id} at {captured_at}")
+        return None
+
     history = models.PlayerPowerHistory(
         player_id=player_id,
         power=power,
@@ -98,9 +110,10 @@ def add_furnace_history(
     player_id: int,
     furnace_level: str,
     captured_at: datetime,
-) -> models.PlayerFurnaceHistory:
+) -> models.PlayerFurnaceHistory | None:
     """
     Add a furnace history record for a player.
+    Skips if a record already exists for this player at this timestamp.
 
     Args:
         session: Database session
@@ -109,8 +122,19 @@ def add_furnace_history(
         captured_at: When the screenshot was taken (in UTC)
 
     Returns:
-        PlayerFurnaceHistory model instance
+        PlayerFurnaceHistory model instance or None if already exists
     """
+    # Check if record already exists
+    stmt = select(models.PlayerFurnaceHistory).where(
+        models.PlayerFurnaceHistory.player_id == player_id,
+        models.PlayerFurnaceHistory.captured_at == captured_at
+    )
+    existing = session.execute(stmt).scalar_one_or_none()
+
+    if existing:
+        logger.debug(f"Furnace history already exists for player {player_id} at {captured_at}")
+        return None
+
     furnace_int = _parse_furnace_level(furnace_level)
     history = models.PlayerFurnaceHistory(
         player_id=player_id,
@@ -171,13 +195,15 @@ def save_alliance_members_ocr(
 
         # Add power history if available
         if power is not None:
-            add_power_history(session, player.id, power, captured_at)
-            power_count += 1
+            result = add_power_history(session, player.id, power, captured_at)
+            if result is not None:
+                power_count += 1
 
         # Add furnace history if available
         if furnace_level is not None:
-            add_furnace_history(session, player.id, furnace_level, captured_at)
-            furnace_count += 1
+            result = add_furnace_history(session, player.id, furnace_level, captured_at)
+            if result is not None:
+                furnace_count += 1
 
     session.commit()
     logger.info(

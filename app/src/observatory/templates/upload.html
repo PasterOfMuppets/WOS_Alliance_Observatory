@@ -167,12 +167,30 @@
 
                         resultsList.innerHTML = `
                             <div class="success-message">
-                                Successfully uploaded ${data.files.length} files
+                                ${data.message}
                             </div>
-                            <ul>
-                                ${data.files.map(f => `<li>${f.filename} - ${formatFileSize(f.size)}</li>`).join('')}
-                            </ul>
-                            <p class="note">Note: Files are currently saved but auto-processing is not yet implemented. They will be processed in a future update.</p>
+                            <table class="scores-table" style="margin-top: 15px;">
+                                <thead>
+                                    <tr>
+                                        <th>Filename</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Records</th>
+                                        <th>Message</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.results.map(r => `
+                                        <tr style="background: ${r.success ? '#d4edda' : '#f8d7da'};">
+                                            <td>${r.filename}</td>
+                                            <td>${r.type}</td>
+                                            <td>${r.success ? '✓ Success' : '✗ Failed'}</td>
+                                            <td>${r.records_saved}</td>
+                                            <td>${r.message}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
                         `;
 
                         // Reset

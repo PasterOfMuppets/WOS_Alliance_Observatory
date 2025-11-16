@@ -439,28 +439,48 @@ async def upload_screenshots(
     session: Session = Depends(auth.get_session)
 ):
     """Bulk upload screenshots for processing."""
-    # TODO: Implement screenshot upload and auto-processing
-    # For now, just save the files and return status
+    from .screenshot_processor import ScreenshotProcessor
 
-    uploaded_files = []
+    alliance_id = current_user.default_alliance_id or 1
+    processor = ScreenshotProcessor(alliance_id=alliance_id)
+
+    upload_dir = Path("/app/uploads")
+    upload_dir.mkdir(exist_ok=True)
+
+    results = []
     for file in files:
-        # Save to temp directory
-        upload_dir = Path("/app/uploads")
-        upload_dir.mkdir(exist_ok=True)
-
+        # Save file
         file_path = upload_dir / file.filename
         content = await file.read()
 
         with open(file_path, "wb") as f:
             f.write(content)
 
-        uploaded_files.append({
-            "filename": file.filename,
-            "size": len(content),
-            "path": str(file_path)
-        })
+        # Process screenshot
+        try:
+            result = processor.process_screenshot(session, file_path)
+            results.append({
+                "filename": file.filename,
+                "size": len(content),
+                "type": result["type"],
+                "success": result["success"],
+                "message": result["message"],
+                "records_saved": result["records_saved"]
+            })
+        except Exception as e:
+            results.append({
+                "filename": file.filename,
+                "size": len(content),
+                "type": "error",
+                "success": False,
+                "message": str(e),
+                "records_saved": 0
+            })
+
+    successful = sum(1 for r in results if r["success"])
+    total_records = sum(r["records_saved"] for r in results)
 
     return {
-        "message": f"Uploaded {len(files)} files",
-        "files": uploaded_files
+        "message": f"Processed {len(files)} files: {successful} successful, {total_records} records saved",
+        "results": results
     }
