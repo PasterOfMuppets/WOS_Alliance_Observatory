@@ -67,55 +67,48 @@
                 }
 
                 container.innerHTML = data.weeks.map(week => {
-                    // Group snapshots by snapshot date
-                    const snapshotsByDate = {};
-                    week.snapshots.forEach(s => {
-                        if (!snapshotsByDate[s.snapshot_date]) {
-                            snapshotsByDate[s.snapshot_date] = [];
-                        }
-                        snapshotsByDate[s.snapshot_date].push(s);
-                    });
+                    // Find the most recent snapshot date
+                    const mostRecentDate = week.snapshots.reduce((latest, s) => {
+                        const currentDate = new Date(s.snapshot_date);
+                        return currentDate > new Date(latest) ? s.snapshot_date : latest;
+                    }, week.snapshots[0].snapshot_date);
+
+                    // Get only snapshots from the most recent date
+                    const recentSnapshots = week.snapshots.filter(s => s.snapshot_date === mostRecentDate);
 
                     return `
                         <div class="event-card">
                             <div class="event-header">
                                 <h3>Week of ${new Date(week.week_start).toLocaleDateString()}</h3>
                                 <span class="event-stats">
-                                    ${Object.keys(snapshotsByDate).length} snapshots recorded
+                                    Latest snapshot: ${new Date(mostRecentDate).toLocaleDateString()}
                                 </span>
                             </div>
-                            ${Object.keys(snapshotsByDate).map(date => `
-                                <div style="margin-bottom: 20px;">
-                                    <h4 style="color: #667eea; margin-top: 15px;">
-                                        Snapshot: ${new Date(date).toLocaleDateString()}
-                                    </h4>
-                                    <table class="scores-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Rank</th>
-                                                <th>Player</th>
-                                                <th>Contribution</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${snapshotsByDate[date].slice(0, 20).map(s => `
-                                                <tr>
-                                                    <td>${s.rank || '-'}</td>
-                                                    <td>${s.player_name}</td>
-                                                    <td>${s.contribution.toLocaleString()}</td>
-                                                </tr>
-                                            `).join('')}
-                                            ${snapshotsByDate[date].length > 20 ? `
-                                                <tr>
-                                                    <td colspan="3" style="text-align: center; color: #666; font-style: italic;">
-                                                        ... and ${snapshotsByDate[date].length - 20} more players
-                                                    </td>
-                                                </tr>
-                                            ` : ''}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            `).join('')}
+                            <table class="scores-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Player</th>
+                                        <th>Contribution</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${recentSnapshots.slice(0, 20).map(s => `
+                                        <tr>
+                                            <td>${s.rank || '-'}</td>
+                                            <td>${s.player_name}</td>
+                                            <td>${s.contribution.toLocaleString()}</td>
+                                        </tr>
+                                    `).join('')}
+                                    ${recentSnapshots.length > 20 ? `
+                                        <tr>
+                                            <td colspan="3" style="text-align: center; color: #666; font-style: italic;">
+                                                ... and ${recentSnapshots.length - 20} more players
+                                            </td>
+                                        </tr>
+                                    ` : ''}
+                                </tbody>
+                            </table>
                         </div>
                     `;
                 }).join('');
