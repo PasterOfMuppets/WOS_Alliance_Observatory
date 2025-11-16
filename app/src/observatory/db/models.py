@@ -184,6 +184,7 @@ class FoundryEvent(Base):
 
 class FoundrySignup(Base):
     __tablename__ = "foundry_signups"
+    __table_args__ = (UniqueConstraint("foundry_event_id", "player_id", name="uq_foundry_signup_event_player"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     foundry_event_id: Mapped[int] = mapped_column(ForeignKey("foundry_events.id", ondelete="CASCADE"), index=True)
@@ -199,6 +200,7 @@ class FoundrySignup(Base):
 
 class FoundryResult(Base):
     __tablename__ = "foundry_results"
+    __table_args__ = (UniqueConstraint("foundry_event_id", "player_id", name="uq_foundry_result_event_player"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     foundry_event_id: Mapped[int] = mapped_column(ForeignKey("foundry_events.id", ondelete="CASCADE"), index=True)
