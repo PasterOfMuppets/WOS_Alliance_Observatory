@@ -17,6 +17,14 @@ depends_on = None
 
 
 def upgrade():
+    # Normalize all existing snapshot_date and week_start_date to midnight UTC
+    # This ensures that multiple uploads on the same day are properly deduplicated
+    op.execute("""
+        UPDATE contribution_snapshots
+        SET snapshot_date = datetime(date(snapshot_date)),
+            week_start_date = datetime(date(week_start_date))
+    """)
+
     # Delete duplicate contribution_snapshots, keeping the earliest created_at for each
     # (alliance_id, player_id, week_start_date, snapshot_date)
     # This is a SQLite-compatible approach

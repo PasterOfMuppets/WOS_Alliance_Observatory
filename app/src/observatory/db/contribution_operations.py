@@ -35,6 +35,10 @@ def save_contribution_snapshot_ocr(
     Returns:
         Dict with count: {"snapshots": N}
     """
+    # Normalize dates to midnight UTC to prevent duplicates from different upload times
+    week_start_date = week_start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    snapshot_date = snapshot_date.replace(hour=0, minute=0, second=0, microsecond=0)
+
     snapshot_count = 0
 
     for player_data in players_data:
