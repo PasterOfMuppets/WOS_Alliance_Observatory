@@ -11,7 +11,7 @@ from observatory.settings import Settings
 
 def main():
     settings = Settings()
-    engine = create_engine(settings.DATABASE_URL)
+    engine = create_engine(settings.database_url)
 
     with engine.begin() as conn:
         print("=" * 60)
