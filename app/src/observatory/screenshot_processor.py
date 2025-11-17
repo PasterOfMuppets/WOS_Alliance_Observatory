@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import pytz
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -108,7 +109,8 @@ No extra commentary.
         # Extract timestamp
         timestamp = extract_timestamp(image_path)
         if not timestamp:
-            timestamp = datetime.utcnow()
+            # Use timezone-aware UTC datetime to avoid comparison errors
+            timestamp = datetime.now(pytz.UTC)
 
         result = {
             "filename": image_path.name,
