@@ -244,6 +244,7 @@ class ACSignup(Base):
 
 class ContributionSnapshot(Base):
     __tablename__ = "contribution_snapshots"
+    __table_args__ = (UniqueConstraint("alliance_id", "player_id", "week_start_date", "snapshot_date", name="uq_contribution_snapshot"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     alliance_id: Mapped[int] = mapped_column(ForeignKey("alliances.id", ondelete="CASCADE"), index=True)
