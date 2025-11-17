@@ -220,7 +220,23 @@
                         ${events.map(event => `
                             <tr onclick="toggleEventDetail(${event.id})" data-event-id="${event.id}">
                                 <td><span class="expand-icon" id="icon-${event.id}">▶</span></td>
-                                <td><strong>${formatDateTime24(event.started_at)}</strong></td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <strong id="time-display-${event.id}">${formatDateTime24(event.started_at)}</strong>
+                                        <button onclick="editEventTime(event, ${event.id}, '${event.started_at}')"
+                                                style="padding: 2px 6px; font-size: 12px; cursor: pointer;">
+                                            ✏️ Edit
+                                        </button>
+                                    </div>
+                                    <div id="time-edit-${event.id}" style="display: none; margin-top: 4px;">
+                                        <input type="datetime-local" id="time-input-${event.id}"
+                                               style="padding: 4px; margin-right: 4px;">
+                                        <button onclick="saveEventTime(event, ${event.id})"
+                                                style="padding: 4px 8px; cursor: pointer;">Save</button>
+                                        <button onclick="cancelEditTime(event, ${event.id})"
+                                                style="padding: 4px 8px; cursor: pointer;">Cancel</button>
+                                    </div>
+                                </td>
                                 <td>${event.participant_count || 0}</td>
                                 <td>${event.rally_count || '-'}</td>
                                 <td>${event.total_damage ? event.total_damage.toLocaleString() : '-'}</td>
@@ -270,6 +286,73 @@
             } else {
                 detailDiv.classList.add('open');
                 icon.classList.add('open');
+            }
+        }
+
+        function editEventTime(e, eventId, currentTime) {
+            e.stopPropagation();
+            const displayDiv = document.getElementById(`time-display-${eventId}`).parentElement;
+            const editDiv = document.getElementById(`time-edit-${eventId}`);
+            const input = document.getElementById(`time-input-${eventId}`);
+
+            // Convert ISO string to datetime-local format (YYYY-MM-DDTHH:MM)
+            const date = new Date(currentTime);
+            const localDateTime = new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+                .toISOString().slice(0, 16);
+            input.value = localDateTime;
+
+            displayDiv.style.display = 'none';
+            editDiv.style.display = 'block';
+        }
+
+        function cancelEditTime(e, eventId) {
+            e.stopPropagation();
+            const displayDiv = document.getElementById(`time-display-${eventId}`).parentElement;
+            const editDiv = document.getElementById(`time-edit-${eventId}`);
+
+            displayDiv.style.display = 'flex';
+            editDiv.style.display = 'none';
+        }
+
+        async function saveEventTime(e, eventId) {
+            e.stopPropagation();
+            const input = document.getElementById(`time-input-${eventId}`);
+            const newTime = input.value;
+
+            if (!newTime) {
+                alert('Please select a valid date and time');
+                return;
+            }
+
+            try {
+                // Convert local datetime to ISO string
+                const localDate = new Date(newTime);
+                const isoString = localDate.toISOString();
+
+                const response = await fetch(`/api/events/bear/${eventId}?started_at=${encodeURIComponent(isoString)}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update event time');
+                }
+
+                // Update the display
+                const displayElement = document.getElementById(`time-display-${eventId}`);
+                displayElement.textContent = formatDateTime24(isoString);
+
+                // Hide edit controls
+                cancelEditTime(e, eventId);
+
+                // Reload data to ensure consistency
+                await loadBearEvents();
+            } catch (error) {
+                console.error('Error updating event time:', error);
+                alert('Failed to update event time. Please try again.');
             }
         }
 

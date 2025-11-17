@@ -352,6 +352,38 @@ async def get_bear_events(
     }
 
 
+@app.patch("/api/events/bear/{event_id}")
+async def update_bear_event(
+    event_id: int,
+    started_at: str,
+    current_user: models.User = Depends(auth.get_current_active_user),
+    session: Session = Depends(auth.get_session)
+):
+    """Update bear event start time."""
+    from datetime import datetime
+
+    alliance_id = current_user.default_alliance_id or 1
+
+    # Find the event
+    stmt = select(models.BearEvent).where(
+        models.BearEvent.id == event_id,
+        models.BearEvent.alliance_id == alliance_id
+    )
+    event = session.execute(stmt).scalar_one_or_none()
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Bear event not found")
+
+    # Parse and update the timestamp
+    try:
+        new_timestamp = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+        event.started_at = new_timestamp
+        session.commit()
+        return {"success": True, "message": "Bear event timestamp updated"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid datetime format: {str(e)}")
+
+
 @app.get("/api/events/foundry")
 async def get_foundry_events(
     current_user: models.User = Depends(auth.get_current_active_user),
