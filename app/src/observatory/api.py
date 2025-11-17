@@ -398,7 +398,7 @@ async def get_contribution_snapshots(
     current_user: models.User = Depends(auth.get_current_active_user),
     session: Session = Depends(auth.get_session)
 ):
-    """Get contribution snapshots."""
+    """Get contribution snapshots - returns latest snapshot for each week."""
     alliance_id = current_user.default_alliance_id or 1
 
     # Get unique weeks
@@ -408,28 +408,42 @@ async def get_contribution_snapshots(
 
     weeks = session.execute(stmt).scalars().all()
 
-    return {
-        "weeks": [
-            {
-                "week_start": w.isoformat(),
-                "snapshots": [
-                    {
-                        "snapshot_date": s.snapshot_date.isoformat(),
-                        "player_name": s.player.name,
-                        "contribution": s.contribution_amount,
-                        "rank": s.rank
-                    }
-                    for s in session.execute(
-                        select(models.ContributionSnapshot).where(
-                            models.ContributionSnapshot.alliance_id == alliance_id,
-                            models.ContributionSnapshot.week_start_date == w
-                        ).order_by(models.ContributionSnapshot.rank)
-                    ).scalars().all()
-                ]
-            }
-            for w in weeks
-        ]
-    }
+    result_weeks = []
+    for w in weeks:
+        # Find the most recent snapshot_date for this week
+        latest_date_stmt = select(models.ContributionSnapshot.snapshot_date).where(
+            models.ContributionSnapshot.alliance_id == alliance_id,
+            models.ContributionSnapshot.week_start_date == w
+        ).order_by(models.ContributionSnapshot.snapshot_date.desc()).limit(1)
+
+        latest_date = session.execute(latest_date_stmt).scalar_one_or_none()
+
+        if not latest_date:
+            continue
+
+        # Get all snapshots from the latest date only
+        snapshots_stmt = select(models.ContributionSnapshot).where(
+            models.ContributionSnapshot.alliance_id == alliance_id,
+            models.ContributionSnapshot.week_start_date == w,
+            models.ContributionSnapshot.snapshot_date == latest_date
+        ).order_by(models.ContributionSnapshot.rank)
+
+        snapshots = session.execute(snapshots_stmt).scalars().all()
+
+        result_weeks.append({
+            "week_start": w.isoformat(),
+            "snapshots": [
+                {
+                    "snapshot_date": s.snapshot_date.isoformat(),
+                    "player_name": s.player.name,
+                    "contribution": s.contribution_amount,
+                    "rank": s.rank
+                }
+                for s in snapshots
+            ]
+        })
+
+    return {"weeks": result_weeks}
 
 
 @app.post("/api/upload/screenshots")
