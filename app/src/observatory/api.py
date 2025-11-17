@@ -261,7 +261,7 @@ async def player_history(
     current_user: models.User = Depends(auth.get_current_active_user),
     session: Session = Depends(auth.get_session)
 ):
-    """Get historical data for a player (power and furnace)."""
+    """Get historical data for a player (power, furnace, and bear trap scores)."""
     # Get power history
     power_stmt = select(models.PlayerPowerHistory).where(
         models.PlayerPowerHistory.player_id == player_id
@@ -274,6 +274,12 @@ async def player_history(
     ).order_by(models.PlayerFurnaceHistory.captured_at)
     furnace_history = session.execute(furnace_stmt).scalars().all()
 
+    # Get bear trap scores history
+    bear_stmt = select(models.BearScore).where(
+        models.BearScore.player_id == player_id
+    ).order_by(models.BearScore.recorded_at)
+    bear_scores = session.execute(bear_stmt).scalars().all()
+
     return {
         "power": [
             {"date": ph.captured_at.isoformat(), "value": ph.power}
@@ -282,6 +288,15 @@ async def player_history(
         "furnace": [
             {"date": fh.captured_at.isoformat(), "value": fh.furnace_level}
             for fh in furnace_history
+        ],
+        "bear_scores": [
+            {
+                "date": bs.recorded_at.isoformat(),
+                "score": bs.score,
+                "rank": bs.rank,
+                "trap_id": bs.bear_event.trap_id
+            }
+            for bs in bear_scores
         ]
     }
 
@@ -291,7 +306,7 @@ async def get_bear_events(
     current_user: models.User = Depends(auth.get_current_active_user),
     session: Session = Depends(auth.get_session)
 ):
-    """Get all bear events with scores."""
+    """Get all bear events with scores, grouped by trap."""
     alliance_id = current_user.default_alliance_id or 1
 
     # Get bear events
@@ -301,26 +316,39 @@ async def get_bear_events(
 
     events = session.execute(stmt).scalars().all()
 
+    # Group events by trap_id
+    trap1_events = []
+    trap2_events = []
+
+    for e in events:
+        event_data = {
+            "id": e.id,
+            "trap_id": e.trap_id,
+            "started_at": e.started_at.isoformat(),
+            "ended_at": e.ended_at.isoformat() if e.ended_at else None,
+            "rally_count": e.rally_count,
+            "total_damage": e.total_damage,
+            "participant_count": len(e.scores),
+            "scores": [
+                {
+                    "rank": s.rank,
+                    "player_name": s.player.name,
+                    "score": s.score
+                }
+                for s in sorted(e.scores, key=lambda x: x.rank if x.rank else 999)
+            ]
+        }
+
+        if e.trap_id == 1:
+            trap1_events.append(event_data)
+        else:
+            trap2_events.append(event_data)
+
     return {
-        "events": [
-            {
-                "id": e.id,
-                "trap_id": e.trap_id,
-                "started_at": e.started_at.isoformat(),
-                "ended_at": e.ended_at.isoformat() if e.ended_at else None,
-                "rally_count": e.rally_count,
-                "total_damage": e.total_damage,
-                "scores": [
-                    {
-                        "rank": s.rank,
-                        "player_name": s.player.name,
-                        "score": s.score
-                    }
-                    for s in sorted(e.scores, key=lambda x: x.rank if x.rank else 999)
-                ]
-            }
-            for e in events
-        ]
+        "trap1_events": trap1_events,
+        "trap2_events": trap2_events,
+        # Keep legacy format for backward compatibility
+        "events": trap1_events + trap2_events
     }
 
 
