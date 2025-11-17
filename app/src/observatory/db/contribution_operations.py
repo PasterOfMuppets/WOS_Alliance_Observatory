@@ -61,6 +61,19 @@ def save_contribution_snapshot_ocr(
         contribution_amount = player_data.get("contribution", 0)
         rank = player_data.get("rank")
 
+        # Check if snapshot already exists
+        stmt = select(models.ContributionSnapshot).where(
+            models.ContributionSnapshot.alliance_id == alliance_id,
+            models.ContributionSnapshot.player_id == player.id,
+            models.ContributionSnapshot.week_start_date == week_start_date,
+            models.ContributionSnapshot.snapshot_date == snapshot_date,
+        )
+        existing = session.execute(stmt).scalar_one_or_none()
+
+        if existing:
+            logger.debug(f"Contribution snapshot already exists for {player_name} on {snapshot_date.date()}")
+            continue
+
         # Add contribution snapshot
         snapshot = models.ContributionSnapshot(
             alliance_id=alliance_id,
