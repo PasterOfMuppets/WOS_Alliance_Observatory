@@ -28,10 +28,20 @@ def main():
 
         print("=" * 80)
 
-        result = conn.execute(text("SELECT * FROM alembic_version"))
+        try:
 
-        for row in result:
-            print(f"Current version: {row[0]}")
+            result = conn.execute(text("SELECT * FROM alembic_version"))
+
+            for row in result:
+                print(f"Current version: {row[0]}")
+
+        except Exception as e:
+
+            print(f"ERROR: {e}")
+
+            print("Database has not been initialized with alembic!")
+
+            print("You need to run: docker compose exec app alembic upgrade head")
 
         print()
 
