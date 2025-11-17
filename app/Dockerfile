@@ -9,6 +9,7 @@ RUN apt-get update \
         tesseract-ocr-chi-sim \
         tesseract-ocr-chi-tra \
         tesseract-ocr-ara \
+        sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
