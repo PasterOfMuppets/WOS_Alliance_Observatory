@@ -17,6 +17,7 @@ class ScreenshotType(str, Enum):
     CONTRIBUTION = "contribution"
     AC_LANES = "ac_lanes"
     BEAR_EVENT = "bear_event"
+    BEAR_OVERVIEW = "bear_overview"
 
 
 class PlayerStatus(str, Enum):
