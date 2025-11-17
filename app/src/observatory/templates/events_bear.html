@@ -5,6 +5,85 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bear Events - WOS Alliance Observatory</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .trap-section {
+            margin-bottom: 40px;
+        }
+        .trap-section h2 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .trap-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .trap-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .trap-table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .trap-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .trap-table tbody tr {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .trap-table tbody tr:hover {
+            background: #f5f5f5;
+        }
+        .event-detail {
+            display: none;
+            background: #f9f9f9;
+            padding: 20px;
+            margin: -12px 0 12px 0;
+            border-left: 3px solid #667eea;
+        }
+        .event-detail.open {
+            display: block;
+        }
+        .detail-scores-table {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .detail-scores-table th {
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+        .detail-scores-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .detail-scores-table tr:nth-child(even) {
+            background: #fff;
+        }
+        .expand-icon {
+            display: inline-block;
+            transition: transform 0.2s;
+            margin-right: 5px;
+        }
+        .expand-icon.open {
+            transform: rotate(90deg);
+        }
+        .no-events {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar">
@@ -20,23 +99,46 @@
     </nav>
 
     <div class="container">
-        <h2>Bear Trap Events</h2>
+        <h1>Bear Trap Events</h1>
 
-        <div class="events-container">
-            <div class="filter-section">
-                <label for="trapFilter">Filter by Trap:</label>
-                <select id="trapFilter">
-                    <option value="all">All Traps</option>
-                    <option value="1">Trap 1</option>
-                    <option value="2">Trap 2</option>
-                </select>
+        <!-- Trap 1 Section -->
+        <div class="trap-section">
+            <h2>🐻 Trap 1 Events</h2>
+            <div id="trap1Container">
+                <p class="no-events">Loading bear trap 1 events...</p>
             </div>
+        </div>
 
-            <div id="eventsContainer">
-                <p style="text-align: center; padding: 20px;">Loading bear events...</p>
+        <!-- Trap 2 Section -->
+        <div class="trap-section">
+            <h2>🐻 Trap 2 Events</h2>
+            <div id="trap2Container">
+                <p class="no-events">Loading bear trap 2 events...</p>
             </div>
         </div>
     </div>
+
+    <!-- Event Detail Modal Template -->
+    <template id="eventDetailTemplate">
+        <tr class="event-detail-row">
+            <td colspan="5">
+                <div class="event-detail" id="detail-{EVENT_ID}">
+                    <h4>Player Scores ({PARTICIPANT_COUNT} participants)</h4>
+                    <table class="detail-scores-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Player</th>
+                                <th>Damage</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scores-{EVENT_ID}">
+                        </tbody>
+                    </table>
+                </div>
+            </td>
+        </tr>
+    </template>
 
     <script>
         const token = localStorage.getItem('access_token');
@@ -50,7 +152,8 @@
             window.location.href = '/';
         });
 
-        let allEvents = [];
+        let trap1Events = [];
+        let trap2Events = [];
 
         async function loadBearEvents() {
             try {
@@ -70,76 +173,96 @@
                 }
 
                 const data = await response.json();
-                allEvents = data.events;
-                renderEvents();
+                trap1Events = data.trap1_events || [];
+                trap2Events = data.trap2_events || [];
+
+                renderTrapTable('trap1Container', trap1Events, 1);
+                renderTrapTable('trap2Container', trap2Events, 2);
             } catch (error) {
                 console.error('Failed to load bear events:', error);
-                document.getElementById('eventsContainer').innerHTML =
-                    '<p style="text-align: center; padding: 20px; color: red;">Failed to load events</p>';
+                document.getElementById('trap1Container').innerHTML =
+                    '<p class="no-events" style="color: red;">Failed to load events</p>';
+                document.getElementById('trap2Container').innerHTML =
+                    '<p class="no-events" style="color: red;">Failed to load events</p>';
             }
         }
 
-        function renderEvents() {
-            const trapFilter = document.getElementById('trapFilter').value;
-            const filteredEvents = trapFilter === 'all'
-                ? allEvents
-                : allEvents.filter(e => e.trap_id.toString() === trapFilter);
+        function renderTrapTable(containerId, events, trapId) {
+            const container = document.getElementById(containerId);
 
-            const container = document.getElementById('eventsContainer');
-
-            if (filteredEvents.length === 0) {
-                container.innerHTML = '<p style="text-align: center; padding: 20px;">No bear events found</p>';
+            if (events.length === 0) {
+                container.innerHTML = '<p class="no-events">No events found for this trap</p>';
                 return;
             }
 
-            container.innerHTML = filteredEvents.map(event => `
-                <div class="event-card">
-                    <div class="event-header">
-                        <h3>Trap ${event.trap_id} - ${new Date(event.started_at).toLocaleDateString()}</h3>
-                        <span class="event-stats">
-                            ${event.rally_count ? `${event.rally_count} rallies` : ''}
-                            ${event.total_damage ? `| ${event.total_damage.toLocaleString()} total damage` : ''}
-                        </span>
-                    </div>
-                    <div class="event-time">
-                        Started: ${new Date(event.started_at).toLocaleString()}
-                        ${event.ended_at ? `| Ended: ${new Date(event.ended_at).toLocaleString()}` : ''}
-                    </div>
-                    ${event.scores && event.scores.length > 0 ? `
-                        <div class="event-scores">
-                            <h4>Top Performers (${event.scores.length} players)</h4>
-                            <table class="scores-table">
-                                <thead>
-                                    <tr>
-                                        <th>Rank</th>
-                                        <th>Player</th>
-                                        <th>Damage</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${event.scores.slice(0, 10).map(score => `
-                                        <tr>
-                                            <td>${score.rank || '-'}</td>
-                                            <td>${score.player_name}</td>
-                                            <td>${score.score.toLocaleString()}</td>
-                                        </tr>
-                                    `).join('')}
-                                    ${event.scores.length > 10 ? `
-                                        <tr>
-                                            <td colspan="3" style="text-align: center; color: #666; font-style: italic;">
-                                                ... and ${event.scores.length - 10} more players
-                                            </td>
-                                        </tr>
-                                    ` : ''}
-                                </tbody>
-                            </table>
-                        </div>
-                    ` : '<p style="color: #666; font-style: italic;">No scores recorded</p>'}
-                </div>
-            `).join('');
+            const tableHTML = `
+                <table class="trap-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;"></th>
+                            <th>Date & Time</th>
+                            <th>Participants</th>
+                            <th>Rallies</th>
+                            <th>Total Damage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${events.map(event => `
+                            <tr onclick="toggleEventDetail(${event.id})" data-event-id="${event.id}">
+                                <td><span class="expand-icon" id="icon-${event.id}">▶</span></td>
+                                <td><strong>${new Date(event.started_at).toLocaleString()}</strong></td>
+                                <td>${event.participant_count || 0}</td>
+                                <td>${event.rally_count || '-'}</td>
+                                <td>${event.total_damage ? event.total_damage.toLocaleString() : '-'}</td>
+                            </tr>
+                            <tr class="event-detail-row" id="detail-row-${event.id}">
+                                <td colspan="5">
+                                    <div class="event-detail" id="detail-${event.id}">
+                                        <h4>Player Scores (${event.participant_count || 0} participants)</h4>
+                                        ${event.scores && event.scores.length > 0 ? `
+                                            <table class="detail-scores-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Rank</th>
+                                                        <th>Player</th>
+                                                        <th>Damage</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${event.scores.map(score => `
+                                                        <tr>
+                                                            <td>${score.rank || '-'}</td>
+                                                            <td><strong>${score.player_name}</strong></td>
+                                                            <td>${score.score.toLocaleString()}</td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        ` : '<p style="color: #666; font-style: italic;">No scores recorded</p>'}
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = tableHTML;
         }
 
-        document.getElementById('trapFilter').addEventListener('change', renderEvents);
+        function toggleEventDetail(eventId) {
+            const detailDiv = document.getElementById(`detail-${eventId}`);
+            const icon = document.getElementById(`icon-${eventId}`);
+
+            if (detailDiv.classList.contains('open')) {
+                detailDiv.classList.remove('open');
+                icon.classList.remove('open');
+            } else {
+                detailDiv.classList.add('open');
+                icon.classList.add('open');
+            }
+        }
+
         loadBearEvents();
     </script>
 </body>
