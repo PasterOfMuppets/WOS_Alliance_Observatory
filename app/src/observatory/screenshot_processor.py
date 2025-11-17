@@ -162,6 +162,12 @@ No extra commentary.
                 result["success"] = True
                 result["message"] = f"Saved {records} alliance power records"
 
+            elif screenshot_type == "bear_overview":
+                records = self._process_bear_overview(session, image_path, timestamp)
+                result["records_saved"] = records
+                result["success"] = True
+                result["message"] = f"Saved {records} bear overview records"
+
             else:
                 result["message"] = f"Unknown screenshot type: {screenshot_type}"
 
@@ -269,3 +275,32 @@ No extra commentary.
             session, timestamp, data.get("alliances", []), timestamp
         )
         return result.get("snapshots", 0)
+
+    def _process_bear_overview(self, session: Session, image_path: Path, timestamp: datetime) -> int:
+        """Process bear overview screenshot (Tesseract-based)."""
+        from .db.bear_operations import find_or_create_bear_event
+        from .ocr.bear_overview_parser import parse_bear_overview
+        import pytesseract
+        from PIL import Image
+
+        # Extract text using Tesseract
+        image = Image.open(image_path)
+        text = pytesseract.image_to_string(image)
+
+        # Parse the overview data
+        data = parse_bear_overview(text)
+
+        # Save to database if we have required fields
+        if data.get("trap_id"):
+            find_or_create_bear_event(
+                session,
+                self.alliance_id,
+                trap_id=data["trap_id"],
+                started_at=timestamp,
+                rally_count=data.get("rally_count"),
+                total_damage=data.get("total_damage"),
+            )
+            session.commit()
+            return 1
+
+        return 0
