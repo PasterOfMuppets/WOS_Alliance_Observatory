@@ -141,6 +141,201 @@ ai_ocr_rate_limit_delay: int = Field(12, alias="AI_OCR_RATE_LIMIT_DELAY")
 
 ---
 
+### 1.4 Alliance Championship Duplicate Entries
+**Location:** `app/src/observatory/db/ac_operations.py` and database query
+
+**Current Behavior:**
+- Alliance Championship events showing 113 players signed up
+- Maximum should be 100 players per event
+- Database query reveals duplicates:
+  ```sql
+  SELECT player_id, COUNT(*) as count
+  FROM ac_signups
+  WHERE ac_event_id = 1
+  GROUP BY player_id
+  HAVING COUNT(*) > 1;
+  -- Result: Player 33 has 12 entries, Player 46 has 3 entries
+  -- Actual unique players: 92
+  ```
+
+**Root Cause:**
+- Multiple screenshots processed for same signup period
+- No unique constraint preventing duplicate signups
+- Same player can be added multiple times
+
+**Desired Behavior:**
+- Maximum 100 unique players per event
+- Each player appears only once in signup list
+- Show AC power value for each player
+- Display by week (Monday 00:00 UTC start)
+
+**Technical Details:**
+
+1. **Add Unique Constraint**
+   ```python
+   # In models.py
+   class ACSignup(Base):
+       __table_args__ = (
+           UniqueConstraint("ac_event_id", "player_id", name="uq_ac_signup"),
+       )
+   ```
+
+2. **Create Migration to Clean Duplicates**
+   ```python
+   # Alembic migration
+   def upgrade():
+       # Delete duplicate signups, keeping the one with highest ac_power
+       op.execute("""
+           DELETE FROM ac_signups
+           WHERE id NOT IN (
+               SELECT MIN(id)
+               FROM ac_signups
+               GROUP BY ac_event_id, player_id
+           )
+       """)
+
+       op.create_unique_constraint(
+           'uq_ac_signup',
+           'ac_signups',
+           ['ac_event_id', 'player_id']
+       )
+   ```
+
+3. **Update Save Function**
+   ```python
+   # In ac_operations.py
+   # Check if signup already exists before inserting
+   stmt = select(models.ACSignup).where(
+       models.ACSignup.ac_event_id == event.id,
+       models.ACSignup.player_id == player.id
+   )
+   existing = session.execute(stmt).scalar_one_or_none()
+
+   if existing:
+       # Update AC power if new value is higher
+       if ac_power > existing.ac_power:
+           existing.ac_power = ac_power
+       continue
+   ```
+
+4. **UI Display by Week**
+   - Group AC events by week_start_date
+   - Show expandable sections per week
+   - Display player count (should be ≤100)
+   - Show signup date/time from screenshot
+
+**Files to Modify:**
+- `app/src/observatory/db/models.py:ACSignup`
+- `app/src/observatory/db/ac_operations.py:save_ac_signup_ocr`
+- Create new migration: `app/alembic/versions/fix_ac_duplicates.py`
+- `app/src/observatory/templates/events_ac.html`
+
+**Diagnostic Query:**
+```sql
+-- Check current state
+SELECT ac_event_id, COUNT(*) as total_signups, COUNT(DISTINCT player_id) as unique_players
+FROM ac_signups
+GROUP BY ac_event_id;
+```
+
+---
+
+### 1.5 Weekly Contribution Tracking Not Displaying
+**Location:** `app/src/observatory/templates/events_contribution.html` and API endpoint
+
+**Current Behavior:**
+- Weekly Contribution Tracking page shows no data
+- Database contains contribution data:
+  ```sql
+  -- Week 2025-11-10, Snapshot 2025-11-15: 40 players
+  -- Screenshot taken: 2025-11-15 18:45:24
+  ```
+- User cannot see historical contribution data
+
+**Root Cause:**
+- UI may be filtering for "current week" only
+- Need to display historical weeks
+- Need to show which screenshot the data came from (date/time)
+
+**Desired Behavior:**
+- Show list of all weeks with contribution data
+- Default to most recent week with data
+- Display screenshot timestamp: "Data from screenshot taken on 2025-11-15 at 18:45 UTC"
+- Allow selecting different weeks from dropdown
+- Show all players who contributed that week
+
+**Technical Details:**
+
+1. **Update API Endpoint**
+   ```python
+   # In api.py - already partially implemented
+   @app.get("/api/events/contribution")
+   async def get_contribution_snapshots(...):
+       """Get contribution snapshots - returns latest snapshot for each week."""
+       # Already returns weeks list and snapshots
+       # Ensure snapshot_date is included in response for display
+   ```
+
+2. **Update Template to Show Screenshot Time**
+   ```html
+   <!-- In events_contribution.html -->
+   <div class="week-selector">
+       <label for="week">Select Week:</label>
+       <select id="week" onchange="loadWeek(this.value)">
+           <option value="2025-11-10">Week of Nov 10, 2025</option>
+           <option value="2025-11-03">Week of Nov 3, 2025</option>
+       </select>
+   </div>
+
+   <div class="snapshot-info">
+       📸 Data from screenshot taken on <span id="snapshot-time"></span>
+   </div>
+
+   <script>
+   function displaySnapshotTime(snapshotDate) {
+       const date = new Date(snapshotDate);
+       document.getElementById('snapshot-time').textContent =
+           date.toLocaleString('en-US', {
+               dateStyle: 'medium',
+               timeStyle: 'short',
+               timeZone: 'UTC'
+           }) + ' UTC';
+   }
+   </script>
+   ```
+
+3. **Default to Latest Week**
+   ```javascript
+   // On page load, select most recent week
+   async function loadLatestWeek() {
+       const response = await fetch('/api/events/contribution');
+       const data = await response.json();
+       if (data.weeks && data.weeks.length > 0) {
+           const latestWeek = data.weeks[0]; // Assuming sorted desc
+           loadWeek(latestWeek);
+       }
+   }
+   ```
+
+**Files to Modify:**
+- `app/src/observatory/templates/events_contribution.html`
+- `app/src/observatory/api.py:get_contribution_snapshots` (verify returns snapshot_date)
+- `app/src/observatory/static/style.css` (styling for snapshot info)
+
+**Diagnostic Query:**
+```sql
+-- Check available weeks
+SELECT
+    week_start_date,
+    snapshot_date,
+    COUNT(*) as player_count
+FROM contribution_snapshots
+GROUP BY week_start_date, snapshot_date
+ORDER BY week_start_date DESC, snapshot_date DESC;
+```
+
+---
+
 ## Priority 2: Data Quality & Consistency
 
 ### 2.1 Timezone Handling in SQLite
@@ -219,6 +414,107 @@ Apply to ALL DateTime columns across all models.
 **Files to Create:**
 - `app/scripts/check_all_duplicates.py`
 - Update constraints in models if needed
+
+---
+
+### 2.4 Foundry No-Show Tracking
+**Location:** `app/src/observatory/db/foundry_operations.py` and comparison logic
+
+**Current Behavior:**
+- Foundry signups: 0 imported
+- Foundry results: 16 imported
+- No-shows calculated: -16 (invalid)
+- Cannot track who signed up but didn't participate
+
+**Root Cause:**
+- Only importing "final score" screenshots (foundry_result)
+- Not importing "signup/voted" screenshots (foundry_signup)
+- Need both to calculate no-shows
+
+**Desired Behavior:**
+- Import both signup screenshots AND results screenshots
+- Calculate no-shows: players who signed up but have no score in results
+- Display no-shows prominently for accountability
+- Track signup rate over time
+
+**Technical Details:**
+
+1. **Verify Signup Import Working**
+   ```python
+   # In foundry_operations.py
+   def save_foundry_signup_ocr(session, alliance_id, data, event_date, recorded_at):
+       """Save foundry signup data from OCR."""
+       # Ensure this function is being called for signup screenshots
+       # Debug: Add logging to verify it's being triggered
+   ```
+
+2. **Calculate No-Shows**
+   ```python
+   # Query to find no-shows for an event
+   SELECT
+       fs.player_id,
+       p.name as player_name,
+       fs.legion_id
+   FROM foundry_signups fs
+   JOIN players p ON fs.player_id = p.id
+   LEFT JOIN foundry_results fr ON fr.foundry_event_id = fs.foundry_event_id
+       AND fr.player_id = fs.player_id
+   WHERE fs.foundry_event_id = ?
+       AND fr.id IS NULL  -- No result record
+   ORDER BY p.name;
+   ```
+
+3. **API Endpoint**
+   ```python
+   @app.get("/api/events/foundry/{event_id}/no-shows")
+   async def get_foundry_no_shows(event_id: int, ...):
+       """Get players who signed up but didn't participate."""
+       # Return list of players with signup info but no results
+   ```
+
+4. **UI Display**
+   ```html
+   <!-- In foundry event details -->
+   <div class="foundry-stats">
+       <div class="stat">Signed Up: <strong>50</strong></div>
+       <div class="stat">Participated: <strong>48</strong></div>
+       <div class="stat warning">No-Shows: <strong>2</strong></div>
+   </div>
+
+   <details class="no-shows-section">
+       <summary>View No-Shows (2 players)</summary>
+       <ul>
+           <li>PlayerName1 (Legion 1)</li>
+           <li>PlayerName2 (Legion 2)</li>
+       </ul>
+   </details>
+   ```
+
+5. **Screenshot Classification**
+   - Ensure AI can distinguish between:
+     - `foundry_signup`: Shows "Legion 1 Combatants" or "Legion 2 Combatants" with signup list
+     - `foundry_result`: Shows "Personal Arsenal Points" with player rankings and scores
+
+**Files to Modify:**
+- `app/src/observatory/db/foundry_operations.py`
+- `app/src/observatory/api.py` (add no-shows endpoint)
+- `app/src/observatory/templates/events_foundry.html`
+- `app/src/observatory/screenshot_processor.py:54` (verify foundry_signup classification)
+
+**Diagnostic Queries:**
+```sql
+-- Check current signup vs result data
+SELECT
+    fe.event_date,
+    COUNT(DISTINCT fs.player_id) as signups,
+    COUNT(DISTINCT fr.player_id) as results,
+    COUNT(DISTINCT fs.player_id) - COUNT(DISTINCT fr.player_id) as no_shows
+FROM foundry_events fe
+LEFT JOIN foundry_signups fs ON fs.foundry_event_id = fe.id
+LEFT JOIN foundry_results fr ON fr.foundry_event_id = fe.id
+GROUP BY fe.id, fe.event_date
+ORDER BY fe.event_date DESC;
+```
 
 ---
 
@@ -460,6 +756,300 @@ class BearEvent(Base):
 - `app/src/observatory/db/models.py`
 - `app/src/observatory/templates/events_bear.html`
 - `app/src/observatory/api.py` (add update endpoint)
+
+---
+
+### 3.6 Foundry: Show All Players in Results
+**Location:** `app/src/observatory/templates/events_foundry.html` and API endpoint
+
+**Current Behavior:**
+- Foundry results page may only show top performers
+- Full participant list not visible
+- Cannot see who participated with low scores
+
+**Desired Behavior:**
+- Show ALL players who participated in foundry event
+- Display complete results list with scores
+- Sort by score (highest to lowest) by default
+- Option to filter by legion (Legion 1 vs Legion 2)
+
+**Technical Details:**
+
+1. **Update API to Return All Results**
+   ```python
+   @app.get("/api/events/foundry/{event_id}")
+   async def get_foundry_event(event_id: int, ...):
+       """Get foundry event with ALL results."""
+       # Ensure no LIMIT clause on results query
+       stmt = select(models.FoundryResult).where(
+           models.FoundryResult.foundry_event_id == event_id
+       ).order_by(models.FoundryResult.score.desc())
+       # Return all results, not just top 10 or 20
+   ```
+
+2. **UI Display**
+   ```html
+   <div class="results-header">
+       <h3>Results (48 participants)</h3>
+       <div class="filters">
+           <button onclick="filterLegion(1)">Legion 1 (25)</button>
+           <button onclick="filterLegion(2)">Legion 2 (23)</button>
+           <button onclick="filterLegion(null)">All (48)</button>
+       </div>
+   </div>
+
+   <table class="results-table">
+       <thead>
+           <tr>
+               <th>Rank</th>
+               <th>Player</th>
+               <th>Legion</th>
+               <th>Score</th>
+           </tr>
+       </thead>
+       <tbody id="results-body">
+           <!-- All results displayed here -->
+       </tbody>
+   </table>
+   ```
+
+3. **Performance Consideration**
+   - If 50+ players, consider pagination or virtual scrolling
+   - Add search/filter box for finding specific players
+
+**Files to Modify:**
+- `app/src/observatory/api.py` (verify no LIMIT on foundry results)
+- `app/src/observatory/templates/events_foundry.html`
+
+---
+
+### 3.7 Foundry: Add History to Player History Page
+**Location:** `app/src/observatory/templates/player_history.html` and API endpoint
+
+**Current Behavior:**
+- Player history page shows:
+  - Power history graph
+  - Furnace level history
+  - Bear event scores
+  - Contribution snapshots
+- Missing: Foundry participation history
+
+**Desired Behavior:**
+- Add "Foundry History" section to player history page
+- Show all foundry events the player participated in
+- Display: Event date, Legion, Score, Rank (within legion)
+- Show signup vs participation (did they sign up? did they attend?)
+
+**Technical Details:**
+
+1. **New API Endpoint**
+   ```python
+   @app.get("/api/players/{player_id}/foundry-history")
+   async def get_player_foundry_history(player_id: int, ...):
+       """Get foundry participation history for a player."""
+       stmt = select(
+           models.FoundryEvent.event_date,
+           models.FoundryEvent.id.label('event_id'),
+           models.FoundryResult.score,
+           models.FoundryResult.legion_id,
+           models.FoundrySignup.recorded_at.label('signup_date')
+       ).select_from(models.FoundryEvent)\
+        .outerjoin(models.FoundryResult,
+                   and_(models.FoundryResult.foundry_event_id == models.FoundryEvent.id,
+                        models.FoundryResult.player_id == player_id))\
+        .outerjoin(models.FoundrySignup,
+                   and_(models.FoundrySignup.foundry_event_id == models.FoundryEvent.id,
+                        models.FoundrySignup.player_id == player_id))\
+        .where(
+            or_(
+                models.FoundryResult.player_id == player_id,
+                models.FoundrySignup.player_id == player_id
+            )
+        ).order_by(models.FoundryEvent.event_date.desc())
+
+       results = session.execute(stmt).all()
+       return {"foundry_history": [
+           {
+               "event_date": r.event_date.isoformat(),
+               "event_id": r.event_id,
+               "score": r.score,
+               "legion": r.legion_id,
+               "signed_up": r.signup_date is not None,
+               "participated": r.score is not None
+           }
+           for r in results
+       ]}
+   ```
+
+2. **UI Section**
+   ```html
+   <div class="history-section">
+       <h3>Foundry History</h3>
+       <table class="foundry-history-table">
+           <thead>
+               <tr>
+                   <th>Date</th>
+                   <th>Legion</th>
+                   <th>Score</th>
+                   <th>Status</th>
+               </tr>
+           </thead>
+           <tbody id="foundry-history">
+               <!-- Populated by JavaScript -->
+           </tbody>
+       </table>
+   </div>
+
+   <script>
+   async function loadFoundryHistory(playerId) {
+       const response = await fetch(`/api/players/${playerId}/foundry-history`);
+       const data = await response.json();
+
+       const tbody = document.getElementById('foundry-history');
+       tbody.innerHTML = data.foundry_history.map(event => `
+           <tr>
+               <td>${formatDate(event.event_date)}</td>
+               <td>Legion ${event.legion || '-'}</td>
+               <td>${event.score ? event.score.toLocaleString() : '-'}</td>
+               <td>${event.participated ? '✓ Participated' :
+                     event.signed_up ? '✗ No-show' : '-'}</td>
+           </tr>
+       `).join('');
+   }
+   </script>
+   ```
+
+3. **Statistics Summary**
+   - Total events participated: X
+   - Average score: Y
+   - No-shows: Z
+   - Most common legion: 1 or 2
+
+**Files to Modify:**
+- `app/src/observatory/api.py` (add new endpoint)
+- `app/src/observatory/templates/player_history.html`
+
+---
+
+### 3.8 Bear Scores: Fix Graph Display in Player History
+**Location:** `app/src/observatory/templates/player_history.html`
+
+**Current Behavior:**
+- Bear scores displayed as line graph
+- Line graph implies continuous relationship between points
+- Bear events are discrete, individual events
+- Each bear score is independent (different variables, traps, strategies)
+- Graph looks misleading
+
+**Desired Behavior:**
+- **Option A (Recommended)**: Display as table with sortable columns
+  - Columns: Date, Trap (1 or 2), Score, Rank, Event Link
+  - Sortable by date, score, rank
+  - Clean, easy to read
+- **Option B**: Discrete bar chart (vertical bars)
+  - One bar per bear event
+  - X-axis: Event date
+  - Y-axis: Score
+  - No connecting lines
+  - Different color for Trap 1 vs Trap 2
+
+**Technical Details:**
+
+**Option A: Table Display (Simpler, Recommended)**
+```html
+<div class="history-section">
+    <h3>Bear Event Participation</h3>
+    <table class="bear-scores-table sortable">
+        <thead>
+            <tr>
+                <th onclick="sortTable('date')">Date ↕</th>
+                <th onclick="sortTable('trap')">Trap ↕</th>
+                <th onclick="sortTable('score')">Score ↕</th>
+                <th onclick="sortTable('rank')">Rank ↕</th>
+                <th>View Event</th>
+            </tr>
+        </thead>
+        <tbody id="bear-scores">
+            <tr>
+                <td>2025-11-17 14:20</td>
+                <td>Trap 1</td>
+                <td>1,234,567,890</td>
+                <td>5</td>
+                <td><a href="/events/bear#event-123">View →</a></td>
+            </tr>
+            <!-- More rows -->
+        </tbody>
+    </table>
+
+    <div class="stats-summary">
+        <span>Total Events: <strong>12</strong></span>
+        <span>Average Score: <strong>1.2B</strong></span>
+        <span>Best Rank: <strong>#3</strong></span>
+    </div>
+</div>
+
+<style>
+.bear-scores-table th {
+    cursor: pointer;
+    user-select: none;
+}
+.bear-scores-table th:hover {
+    background-color: #f0f0f0;
+}
+</style>
+```
+
+**Option B: Discrete Bar Chart**
+```html
+<div class="history-section">
+    <h3>Bear Event Participation</h3>
+    <canvas id="bear-scores-chart" width="600" height="300"></canvas>
+</div>
+
+<script>
+// Using Chart.js with bar chart type
+const ctx = document.getElementById('bear-scores-chart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',  // Not line!
+    data: {
+        labels: bearDates,  // ['Nov 17', 'Nov 10', ...]
+        datasets: [{
+            label: 'Trap 1',
+            data: trap1Scores,
+            backgroundColor: 'rgba(54, 162, 235, 0.5)'
+        }, {
+            label: 'Trap 2',
+            data: trap2Scores,
+            backgroundColor: 'rgba(255, 99, 132, 0.5)'
+        }]
+    },
+    options: {
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Damage Score' }
+            }
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: (context) => `Score: ${context.parsed.y.toLocaleString()}`
+                }
+            }
+        }
+    }
+});
+</script>
+```
+
+**Recommendation:**
+- Use **Option A (Table)** - simpler, no dependencies, easier to sort/search
+- Add statistics summary below table
+- Keep data accessible and clear
+
+**Files to Modify:**
+- `app/src/observatory/templates/player_history.html`
+- `app/src/observatory/static/style.css` (table styling)
 
 ---
 
@@ -748,22 +1338,34 @@ tests/
 
 ## Implementation Plan
 
-### Phase 1: Critical Fixes (Week 1)
+### Phase 1: Critical Fixes & Data Quality (Week 1)
 - [ ] 1.1 Bear Events Edit Button (2 hours)
 - [ ] 1.2 Remove Unranked Players (3 hours)
 - [ ] 1.3 Rate Limiting Fix (4 hours)
+- [ ] 1.4 Alliance Championship Duplicates (4 hours)
+- [ ] 1.5 Weekly Contribution Display Fix (3 hours)
 - [ ] 2.1 Apply TZDateTime Type (6 hours)
 
-### Phase 2: Data Quality (Week 2)
+**Total: ~22 hours**
+
+### Phase 2: Data Quality & Foundry (Week 2)
 - [ ] 2.2 Duplicate Detection Script (4 hours)
 - [ ] 2.3 Screenshot Classification Improvements (5 hours)
+- [ ] 2.4 Foundry No-Show Tracking (6 hours)
 - [ ] 4.2 Screenshot Cleanup (3 hours)
 
-### Phase 3: Features (Week 3-4)
+**Total: ~18 hours**
+
+### Phase 3: UI Improvements & Features (Week 3-4)
+- [ ] 3.6 Foundry: Show All Players (3 hours)
+- [ ] 3.7 Foundry: Add to Player History (5 hours)
+- [ ] 3.8 Bear Scores: Fix Graph Display (4 hours)
 - [ ] 3.1 Manual Data Correction (8 hours)
 - [ ] 3.2 Data Export (6 hours)
 - [ ] 3.3 Upload Progress (8 hours)
 - [ ] 3.5 Bear Event Notes (3 hours)
+
+**Total: ~37 hours**
 
 ### Phase 4: Admin & Quality (Week 5)
 - [ ] 3.4 Admin Panel (12 hours)
@@ -771,9 +1373,20 @@ tests/
 - [ ] 5.2 API Documentation (4 hours)
 - [ ] 5.3 Error Handling (6 hours)
 
+**Total: ~32 hours**
+
 ### Phase 5: Performance (Week 6)
 - [ ] 4.1 Database Indexes (2 hours)
 - [ ] 4.3 Caching Layer (6 hours)
+
+**Total: ~8 hours**
+
+### Phase 6: Architecture Improvements (Future)
+- [ ] PostgreSQL migration (12 hours)
+- [ ] Separate worker service (8 hours)
+- [ ] Frontend framework upgrade (20 hours)
+
+**Total: ~40 hours**
 
 ---
 
@@ -962,16 +1575,27 @@ For each feature:
 
 This document provides a comprehensive roadmap for improving the WOS Alliance Observatory. All items are actionable and include technical details for implementation.
 
-**Estimated Total Effort:** 80-100 hours of development
+**Estimated Total Effort:**
+- Phases 1-5 (Essential): **~117 hours** of development
+- Phase 6 (Future improvements): **~40 hours** additional
+- **Grand Total: ~157 hours**
 
 **Recommended Team:**
 - 1 Backend Developer (FastAPI, SQLAlchemy, database)
 - 1 Frontend Developer (HTML/CSS/JavaScript, UI/UX)
 - Access to Claude Code (Web) for implementation assistance
 
+**Priority Summary:**
+- **6 Critical bugs** requiring immediate attention (Priority 1)
+- **4 Data quality issues** impacting accuracy (Priority 2)
+- **8 Feature enhancements** for better usability (Priority 3)
+- **3 Performance improvements** for scalability (Priority 4)
+- **3 Code quality items** for maintainability (Priority 5)
+
 **Next Steps:**
 1. Review and prioritize items
-2. Clarify any questions above
-3. Begin with Phase 1 (Critical Fixes)
+2. Clarify any questions in "Questions for Clarification" section
+3. Begin with Phase 1 (Critical Fixes & Data Quality)
 4. Set up project tracking (GitHub Issues, Linear, etc.)
 5. Implement and test incrementally
+6. Create database backup before starting Phase 1
