@@ -361,6 +361,7 @@ async def update_bear_event(
 ):
     """Update bear event start time."""
     from datetime import datetime
+    import pytz
 
     alliance_id = current_user.default_alliance_id or 1
 
@@ -377,6 +378,9 @@ async def update_bear_event(
     # Parse and update the timestamp
     try:
         new_timestamp = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+        # Ensure timezone-aware (convert naive to UTC if needed)
+        if new_timestamp.tzinfo is None:
+            new_timestamp = pytz.UTC.localize(new_timestamp)
         event.started_at = new_timestamp
         session.commit()
         return {"success": True, "message": "Bear event timestamp updated"}
