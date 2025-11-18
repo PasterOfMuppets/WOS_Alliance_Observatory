@@ -49,14 +49,16 @@ You are analyzing a screenshot from the mobile game Whiteout Survival.
 Identify which type of screen this is from the following options:
 
 1. "alliance_members" - Shows alliance member list with player names, power (e.g., 193.2M), and furnace levels (FC1-FC9 or 25-30)
-2. "bear_damage" - Shows "Trap 1 Damage Rewards" or "Trap 2 Damage Rewards" with damage rankings
-3. "bear_overview" - Shows "Hunting Trap 1" or "Hunting Trap 2" with "Rallies:" and "Total Alliance Damage:"
+2. "bear_overview" - IMPORTANT: Shows "Hunt successful!" message with "[Hunting Trap 1]" or "[Hunting Trap 2]", includes "Rallies: XX" and "Total Alliance Damage:" numbers. This is the COMPLETION/SUCCESS screen.
+3. "bear_damage" - Shows "Trap 1 Damage Rewards" or "Trap 2 Damage Rewards" title with individual player damage rankings. This is the REWARDS screen (different from overview).
 4. "foundry_signup" - Shows "Legion 1 Combatants" or "Legion 2 Combatants" with signup list
 5. "foundry_result" - Shows "Personal Arsenal Points" with player rankings and scores
 6. "ac_signup" - Shows Alliance Championship signup screen with lanes and "Order of Battle"
 7. "contribution" - Shows "Contribution Rankings" with "Daily Contribution" or "Weekly Contribution"
 8. "alliance_power" - Shows alliance power rankings with alliance names and total power
 9. "unknown" - None of the above
+
+IMPORTANT: Check for "Hunt successful!" and "Rallies:" to identify bear_overview. Check for "Damage Rewards" to identify bear_damage.
 
 Return ONLY a JSON object with one field:
 {"type": "alliance_members"}
