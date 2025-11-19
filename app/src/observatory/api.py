@@ -410,7 +410,8 @@ async def player_history(
                 "date": to_iso_string(fr.recorded_at),
                 "event_date": to_iso_string(fr.foundry_event.event_date),
                 "score": fr.score,
-                "rank": fr.rank
+                "rank": fr.rank,
+                "legion_id": fr.foundry_event.legion_number
             }
             for fr in foundry_results
         ]
@@ -617,6 +618,7 @@ async def get_foundry_events(
 @app.get("/api/events/foundry/{event_id}/results")
 async def get_foundry_event_results(
     event_id: int,
+    legion: int | None = None,
     current_user: models.User = Depends(auth.get_current_active_user),
     session: Session = Depends(get_session)
 ):
@@ -628,6 +630,7 @@ async def get_foundry_event_results(
 
     Args:
         event_id: Database ID of the foundry event
+        legion: Optional legion filter (1 or 2) for UI compatibility
 
     Returns:
         dict: Object containing:
@@ -640,6 +643,7 @@ async def get_foundry_event_results(
                 - player_id (int): Player database ID
                 - player_name (str): Player display name
                 - score (int): Arsenal points earned
+                - legion_id (int): Legion number for this event
 
     Results are sorted by score descending (highest to lowest).
 
@@ -650,6 +654,17 @@ async def get_foundry_event_results(
     event = session.get(models.FoundryEvent, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Foundry event not found")
+
+    # Filter by legion if specified (for UI compatibility)
+    if legion is not None and event.legion_number != legion:
+        # Return empty results if legion doesn't match
+        return {
+            "event_id": event_id,
+            "event_date": to_iso_string(event.event_date),
+            "legion_number": event.legion_number,
+            "total_results": 0,
+            "results": []
+        }
 
     # Get all results
     results = event.results
@@ -667,7 +682,8 @@ async def get_foundry_event_results(
                 "rank": r.rank,
                 "player_id": r.player_id,
                 "player_name": r.player.name,
-                "score": r.score
+                "score": r.score,
+                "legion_id": event.legion_number
             }
             for r in sorted_results
         ]
@@ -699,6 +715,7 @@ async def get_foundry_no_shows(
             - no_shows: List of players who didn't show, each with:
                 - player_id (int): Player database ID
                 - player_name (str): Player display name
+                - legion_id (int): Legion number for this event
 
     No-shows list is sorted alphabetically by player_name.
 
@@ -725,7 +742,8 @@ async def get_foundry_no_shows(
         if signup.player_id in no_show_player_ids:
             no_shows.append({
                 "player_id": signup.player_id,
-                "player_name": signup.player.name
+                "player_name": signup.player.name,
+                "legion_id": signup.foundry_event.legion_number
             })
 
     return {
