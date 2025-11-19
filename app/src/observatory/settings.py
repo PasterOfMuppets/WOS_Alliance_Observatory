@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     ai_ocr_rate_limit_delay: int = Field(12, alias="AI_OCR_RATE_LIMIT_DELAY")
     screenshot_timezone: str = Field("America/New_York", alias="SCREENSHOT_TIMEZONE")
 
+    # Screenshot cleanup settings
+    delete_successful_screenshots: bool = Field(True, alias="DELETE_SUCCESSFUL_SCREENSHOTS")
+    screenshot_retention_days: int = Field(7, alias="SCREENSHOT_RETENTION_DAYS")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

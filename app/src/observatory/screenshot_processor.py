@@ -302,7 +302,38 @@ No extra commentary.
             else:
                 result["message"] = f"✗ Processing failed: {str(e)}"
 
+        # Delete screenshot after successful processing if configured
+        if result["success"] and self._should_delete_screenshot():
+            self._delete_screenshot(image_path)
+
         return result
+
+    def _should_delete_screenshot(self) -> bool:
+        """Check if screenshots should be deleted after processing."""
+        from .settings import settings
+        return settings.delete_successful_screenshots
+
+    def _delete_screenshot(self, image_path: Path) -> None:
+        """Delete a screenshot file after successful processing."""
+        try:
+            if image_path.exists():
+                image_path.unlink()
+                logger.info(
+                    f"Deleted processed screenshot: {image_path.name}",
+                    extra={
+                        "filename": image_path.name,
+                        "alliance_id": self.alliance_id
+                    }
+                )
+        except Exception as e:
+            logger.warning(
+                f"Failed to delete screenshot {image_path.name}: {e}",
+                extra={
+                    "filename": image_path.name,
+                    "error_type": type(e).__name__,
+                    "alliance_id": self.alliance_id
+                }
+            )
 
     def _process_alliance_members(self, session: Session, image_path: Path, timestamp: datetime) -> int:
         """Process alliance members screenshot."""
