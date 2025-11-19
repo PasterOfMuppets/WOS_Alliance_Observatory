@@ -143,7 +143,7 @@ class BearEvent(Base):
     ended_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     rally_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_damage: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # Temporarily disabled - needs migration
     created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     alliance: Mapped[Alliance] = relationship(back_populates="bear_events")

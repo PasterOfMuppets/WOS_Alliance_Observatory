@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from sqlalchemy import TypeDecorator, DateTime
+from sqlalchemy import TypeDecorator, DateTime, String
 import pytz
 
 
@@ -17,25 +17,34 @@ class TZDateTime(TypeDecorator):
     impl = DateTime
     cache_ok = True
 
+    def load_dialect_impl(self, dialect):
+        """Use String type for SQLite to avoid DateTime processor issues."""
+        if dialect.name == 'sqlite':
+            return dialect.type_descriptor(String())
+        else:
+            return dialect.type_descriptor(DateTime(timezone=True))
+
     def process_bind_param(self, value, dialect):
         """Convert Python datetime to database value."""
         if value is not None:
-            # Ensure timezone-aware
-            if value.tzinfo is None:
-                value = pytz.UTC.localize(value)
-            # For SQLite, return ISO format string with timezone
+            # For SQLite, convert to ISO format string (SQLite stores as text)
             if dialect.name == 'sqlite':
+                # Ensure timezone-aware before converting to ISO string
+                if value.tzinfo is None:
+                    value = pytz.UTC.localize(value)
                 return value.isoformat()
+            # For other databases, ensure timezone-aware
+            elif value.tzinfo is None:
+                value = pytz.UTC.localize(value)
         return value
 
     def process_result_value(self, value, dialect):
         """Convert database value to Python datetime."""
         if value is not None and isinstance(value, str):
-            # Parse ISO format string
-            if '+' in value or 'Z' in value:
-                return datetime.fromisoformat(value.replace('Z', '+00:00'))
-            else:
-                # Legacy data without timezone - assume UTC
-                dt = datetime.fromisoformat(value)
+            # Parse ISO format string; ensure trailing Z converted to explicit offset
+            normalized = value.replace('Z', '+00:00')
+            dt = datetime.fromisoformat(normalized)
+            if dt.tzinfo is None:
                 return pytz.UTC.localize(dt)
+            return dt
         return value

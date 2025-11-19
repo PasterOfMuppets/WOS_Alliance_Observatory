@@ -17,6 +17,17 @@ from .db import models
 from .db.session import get_session
 from .worker import enqueue_pipeline_job, get_worker_state, start_worker, stop_worker
 
+
+def to_iso_string(dt):
+    """Convert datetime-like object to ISO format string."""
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        return dt
+    if hasattr(dt, 'isoformat'):
+        return dt.isoformat()
+    return str(dt)
+
 app = FastAPI(
     title="WOS Alliance Observatory",
     description="API + OCR worker container running inside a single image.",
@@ -124,7 +135,7 @@ async def login(
         )
 
     # Update last login
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.utcnow()
     session.commit()
 
     # Create access token
@@ -378,16 +389,16 @@ async def player_history(
 
     return {
         "power": [
-            {"date": ph.captured_at.isoformat(), "value": ph.power}
+            {"date": to_iso_string(ph.captured_at), "value": ph.power}
             for ph in power_history
         ],
         "furnace": [
-            {"date": fh.captured_at.isoformat(), "value": fh.furnace_level}
+            {"date": to_iso_string(fh.captured_at), "value": fh.furnace_level}
             for fh in furnace_history
         ],
         "bear_scores": [
             {
-                "date": bs.recorded_at.isoformat(),
+                "date": to_iso_string(bs.recorded_at),
                 "score": bs.score,
                 "rank": bs.rank,
                 "trap_id": bs.bear_event.trap_id
@@ -396,9 +407,8 @@ async def player_history(
         ],
         "foundry_results": [
             {
-                "date": fr.recorded_at.isoformat(),
-                "event_date": fr.foundry_event.event_date.isoformat(),
-                "legion_id": fr.legion_id,
+                "date": to_iso_string(fr.recorded_at),
+                "event_date": to_iso_string(fr.foundry_event.event_date),
                 "score": fr.score,
                 "rank": fr.rank
             }
@@ -454,8 +464,8 @@ async def get_bear_events(
         event_data = {
             "id": e.id,
             "trap_id": e.trap_id,
-            "started_at": e.started_at.isoformat(),
-            "ended_at": e.ended_at.isoformat() if e.ended_at else None,
+            "started_at": to_iso_string(e.started_at),
+            "ended_at": to_iso_string(e.ended_at),
             "rally_count": e.rally_count,
             "total_damage": e.total_damage,
             "participant_count": len(e.scores),
@@ -581,7 +591,7 @@ async def get_foundry_events(
             {
                 "id": e.id,
                 "legion_number": e.legion_number,
-                "event_date": e.event_date.isoformat(),
+                "event_date": to_iso_string(e.event_date),
                 "total_troop_power": e.total_troop_power,
                 "max_participants": e.max_participants,
                 "actual_participants": e.actual_participants,
@@ -607,31 +617,28 @@ async def get_foundry_events(
 @app.get("/api/events/foundry/{event_id}/results")
 async def get_foundry_event_results(
     event_id: int,
-    legion: int | None = None,
     current_user: models.User = Depends(auth.get_current_active_user),
     session: Session = Depends(get_session)
 ):
     """
-    Get complete results for a specific foundry event with optional legion filtering.
+    Get complete results for a specific foundry event.
 
     This endpoint returns all participants, not just the top 10 shown in the summary.
-    Useful for displaying the full leaderboard and filtering by legion assignment.
+    Useful for displaying the full leaderboard.
 
     Args:
         event_id: Database ID of the foundry event
-        legion: Optional legion filter (1 or 2). If omitted, returns all participants.
 
     Returns:
         dict: Object containing:
             - event_id (int): Database ID of the event
             - event_date (str): Event date (ISO 8601)
             - legion_number (int): Legion assignment for this event
-            - total_results (int): Number of results returned (after legion filtering)
+            - total_results (int): Number of results returned
             - results: List of all participants with:
                 - rank (int): Player's rank in event
                 - player_id (int): Player database ID
                 - player_name (str): Player display name
-                - legion_id (int): Legion assignment (1 or 2)
                 - score (int): Arsenal points earned
 
     Results are sorted by score descending (highest to lowest).
@@ -647,16 +654,12 @@ async def get_foundry_event_results(
     # Get all results
     results = event.results
 
-    # Filter by legion if specified
-    if legion is not None:
-        results = [r for r in results if r.legion_id == legion]
-
     # Sort by score (descending)
     sorted_results = sorted(results, key=lambda x: x.score if x.score else 0, reverse=True)
 
     return {
         "event_id": event_id,
-        "event_date": event.event_date.isoformat(),
+        "event_date": to_iso_string(event.event_date),
         "legion_number": event.legion_number,
         "total_results": len(sorted_results),
         "results": [
@@ -664,7 +667,6 @@ async def get_foundry_event_results(
                 "rank": r.rank,
                 "player_id": r.player_id,
                 "player_name": r.player.name,
-                "legion_id": r.legion_id,
                 "score": r.score
             }
             for r in sorted_results
@@ -697,7 +699,6 @@ async def get_foundry_no_shows(
             - no_shows: List of players who didn't show, each with:
                 - player_id (int): Player database ID
                 - player_name (str): Player display name
-                - legion_id (int): Assigned legion (1 or 2)
 
     No-shows list is sorted alphabetically by player_name.
 
@@ -724,13 +725,12 @@ async def get_foundry_no_shows(
         if signup.player_id in no_show_player_ids:
             no_shows.append({
                 "player_id": signup.player_id,
-                "player_name": signup.player.name,
-                "legion_id": signup.legion_id
+                "player_name": signup.player.name
             })
 
     return {
         "event_id": event_id,
-        "event_date": event.event_date.isoformat(),
+        "event_date": to_iso_string(event.event_date),
         "signups_count": len(signup_player_ids),
         "participated_count": len(result_player_ids),
         "no_shows_count": len(no_show_player_ids),
@@ -775,7 +775,7 @@ async def get_ac_events(
         "events": [
             {
                 "id": e.id,
-                "week_start_date": e.week_start_date.isoformat(),
+                "week_start_date": to_iso_string(e.week_start_date),
                 "total_registered": e.total_registered,
                 "total_power": e.total_power,
                 "signups_count": len(e.signups)
@@ -845,10 +845,10 @@ async def get_contribution_snapshots(
         snapshots = session.execute(snapshots_stmt).scalars().all()
 
         result_weeks.append({
-            "week_start": w.isoformat(),
+            "week_start": to_iso_string(w),
             "snapshots": [
                 {
-                    "snapshot_date": s.snapshot_date.isoformat(),
+                    "snapshot_date": to_iso_string(s.snapshot_date),
                     "player_name": s.player.name,
                     "contribution": s.contribution_amount,
                     "rank": s.rank
