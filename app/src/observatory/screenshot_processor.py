@@ -104,8 +104,15 @@ No extra commentary.
             }
 
         except Exception as e:
-            logger.error(f"Failed to detect screenshot type with AI: {e}")
-            logger.info(f"Falling back to heuristic detection")
+            logger.error(
+                f"AI classification failed for {image_path.name}: {type(e).__name__}: {e}",
+                extra={
+                    "filename": image_path.name,
+                    "error_type": type(e).__name__,
+                    "fallback_method": "heuristic"
+                }
+            )
+            logger.info(f"Falling back to heuristic detection for {image_path.name}")
             return heuristic_result
 
     def _detect_type_heuristic(self, image_path: Path) -> dict[str, Any]:
@@ -196,56 +203,104 @@ No extra commentary.
                 records = self._process_alliance_members(session, image_path, timestamp)
                 result["records_saved"] = records
                 result["success"] = True
-                result["message"] = f"Saved {records} alliance members"
+                result["message"] = f"✓ Saved {records} alliance member(s)"
 
             elif screenshot_type == "bear_damage":
                 records = self._process_bear_damage(session, image_path, timestamp)
                 result["records_saved"] = records
                 result["success"] = True
-                result["message"] = f"Saved {records} bear damage scores"
+                result["message"] = f"✓ Saved {records} bear damage score(s)"
 
             elif screenshot_type == "foundry_signup":
                 records = self._process_foundry_signup(session, image_path, timestamp)
                 result["records_saved"] = records
                 result["success"] = True
-                result["message"] = f"Saved {records} foundry signups"
+                result["message"] = f"✓ Saved {records} foundry signup(s)"
 
             elif screenshot_type == "foundry_result":
                 records = self._process_foundry_result(session, image_path, timestamp)
                 result["records_saved"] = records
                 result["success"] = True
-                result["message"] = f"Saved {records} foundry results"
+                result["message"] = f"✓ Saved {records} foundry result(s)"
 
             elif screenshot_type == "ac_signup":
                 records = self._process_ac_signup(session, image_path, timestamp)
                 result["records_saved"] = records
                 result["success"] = True
-                result["message"] = f"Saved {records} AC signups"
+                result["message"] = f"✓ Saved {records} AC signup(s)"
 
             elif screenshot_type == "contribution":
                 records = self._process_contribution(session, image_path, timestamp)
                 result["records_saved"] = records
                 result["success"] = True
-                result["message"] = f"Saved {records} contribution records"
+                result["message"] = f"✓ Saved {records} contribution record(s)"
 
             elif screenshot_type == "alliance_power":
                 records = self._process_alliance_power(session, image_path, timestamp)
                 result["records_saved"] = records
                 result["success"] = True
-                result["message"] = f"Saved {records} alliance power records"
+                result["message"] = f"✓ Saved {records} alliance power record(s)"
 
             elif screenshot_type == "bear_overview":
                 records = self._process_bear_overview(session, image_path, timestamp)
                 result["records_saved"] = records
                 result["success"] = True
-                result["message"] = f"Saved {records} bear overview records"
+                result["message"] = f"✓ Saved {records} bear overview record(s)"
 
             else:
-                result["message"] = f"Unknown screenshot type: {screenshot_type}"
+                result["message"] = f"⚠ Unknown or unsupported screenshot type: {screenshot_type}"
+                logger.warning(
+                    f"Unknown screenshot type for {image_path.name}: {screenshot_type}",
+                    extra={
+                        "filename": image_path.name,
+                        "screenshot_type": screenshot_type,
+                        "alliance_id": self.alliance_id
+                    }
+                )
+
+        except ImportError as e:
+            logger.error(
+                f"Missing dependency for {screenshot_type}: {e}",
+                extra={
+                    "filename": image_path.name,
+                    "screenshot_type": screenshot_type,
+                    "error_type": "ImportError",
+                    "alliance_id": self.alliance_id
+                }
+            )
+            result["message"] = f"✗ System error: Missing required component ({e}). Please contact support."
+
+        except ValueError as e:
+            logger.error(
+                f"Data validation failed for {image_path.name}: {e}",
+                extra={
+                    "filename": image_path.name,
+                    "screenshot_type": screenshot_type,
+                    "error_type": "ValueError",
+                    "alliance_id": self.alliance_id
+                }
+            )
+            result["message"] = f"✗ Data extraction failed: {str(e)}. Screenshot may be cropped or unclear."
 
         except Exception as e:
-            logger.error(f"Failed to process {image_path.name}: {e}")
-            result["message"] = f"Error: {str(e)}"
+            error_type = type(e).__name__
+            logger.error(
+                f"Failed to process {image_path.name}: {error_type}: {e}",
+                extra={
+                    "filename": image_path.name,
+                    "screenshot_type": screenshot_type,
+                    "error_type": error_type,
+                    "alliance_id": self.alliance_id
+                },
+                exc_info=True
+            )
+            # Provide user-friendly error messages based on error type
+            if "API" in str(e) or "openai" in str(e).lower():
+                result["message"] = f"✗ OCR service temporarily unavailable. Please try again in a few minutes."
+            elif "database" in str(e).lower() or "sqlite" in str(e).lower():
+                result["message"] = f"✗ Database error. Please try again or contact support if the problem persists."
+            else:
+                result["message"] = f"✗ Processing failed: {str(e)}"
 
         return result
 
@@ -352,12 +407,45 @@ No extra commentary.
         """Process bear overview screenshot (Tesseract-based)."""
         from .db.bear_operations import find_or_create_bear_event
         from .ocr.bear_overview_parser import parse_bear_overview
-        import pytesseract
         from PIL import Image
 
-        # Extract text using Tesseract
-        image = Image.open(image_path)
-        text = pytesseract.image_to_string(image)
+        try:
+            import pytesseract
+        except ImportError as e:
+            logger.error(
+                f"Tesseract/pytesseract not available: {e}",
+                extra={
+                    "filename": image_path.name,
+                    "screenshot_type": "bear_overview",
+                    "alliance_id": self.alliance_id
+                }
+            )
+            raise ImportError("Tesseract OCR is not installed or configured") from e
+
+        try:
+            # Extract text using Tesseract
+            image = Image.open(image_path)
+            text = pytesseract.image_to_string(image)
+
+            logger.debug(
+                f"Tesseract extracted {len(text)} characters from {image_path.name}",
+                extra={
+                    "filename": image_path.name,
+                    "text_length": len(text),
+                    "alliance_id": self.alliance_id
+                }
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Tesseract extraction failed for {image_path.name}: {e}",
+                extra={
+                    "filename": image_path.name,
+                    "error_type": type(e).__name__,
+                    "alliance_id": self.alliance_id
+                }
+            )
+            raise ValueError("Failed to extract text from screenshot") from e
 
         # Parse the overview data
         data = parse_bear_overview(text)
@@ -373,6 +461,25 @@ No extra commentary.
                 total_damage=data.get("total_damage"),
             )
             session.commit()
+            logger.info(
+                f"Saved bear overview: Trap {data['trap_id']}, {data.get('rally_count', 'N/A')} rallies, "
+                f"{data.get('total_damage', 'N/A')} damage",
+                extra={
+                    "filename": image_path.name,
+                    "trap_id": data["trap_id"],
+                    "rally_count": data.get("rally_count"),
+                    "total_damage": data.get("total_damage"),
+                    "alliance_id": self.alliance_id
+                }
+            )
             return 1
-
-        return 0
+        else:
+            logger.warning(
+                f"Could not extract trap_id from bear overview: {image_path.name}",
+                extra={
+                    "filename": image_path.name,
+                    "extracted_data": data,
+                    "alliance_id": self.alliance_id
+                }
+            )
+            raise ValueError("Could not identify trap number from screenshot. Please ensure the 'Hunt successful!' message is visible.")

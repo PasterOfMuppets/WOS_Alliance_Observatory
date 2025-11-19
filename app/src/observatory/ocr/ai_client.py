@@ -450,21 +450,130 @@ class OpenAIVisionExtractor:
         return self._call_openai_with_prompt(img_b64, self.prompt)
 
     def _call_openai_with_prompt(self, img_b64: str, prompt: str) -> dict[str, Any]:
-        # Use the standard chat completions API for vision
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"},
-                        },
-                    ],
-                }
-            ],
-            response_format={"type": "json_object"},
+        """Call OpenAI Vision API with structured error handling."""
+        from openai import (
+            APIError,
+            APIConnectionError,
+            RateLimitError,
+            AuthenticationError,
+            BadRequestError
         )
-        return response.model_dump()
+
+        try:
+            # Use the standard chat completions API for vision
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"},
+                            },
+                        ],
+                    }
+                ],
+                response_format={"type": "json_object"},
+            )
+
+            logger.debug(
+                f"OpenAI API call successful: {response.usage.total_tokens} tokens",
+                extra={
+                    "model": self.model,
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens
+                }
+            )
+
+            return response.model_dump()
+
+        except RateLimitError as e:
+            logger.error(
+                f"OpenAI rate limit exceeded: {e}",
+                extra={
+                    "error_type": "RateLimitError",
+                    "model": self.model,
+                    "retry_after": getattr(e, "retry_after", None)
+                }
+            )
+            raise RuntimeError(
+                "OCR service rate limit reached. Please wait a few minutes and try again."
+            ) from e
+
+        except AuthenticationError as e:
+            logger.error(
+                f"OpenAI authentication failed: {e}",
+                extra={
+                    "error_type": "AuthenticationError",
+                    "model": self.model
+                }
+            )
+            raise RuntimeError(
+                "OCR service authentication failed. Please contact support."
+            ) from e
+
+        except BadRequestError as e:
+            logger.error(
+                f"OpenAI bad request: {e}",
+                extra={
+                    "error_type": "BadRequestError",
+                    "model": self.model,
+                    "image_size_bytes": len(img_b64)
+                }
+            )
+            raise ValueError(
+                "Screenshot could not be processed. Image may be too large or in an unsupported format."
+            ) from e
+
+        except APIConnectionError as e:
+            logger.error(
+                f"OpenAI connection error: {e}",
+                extra={
+                    "error_type": "APIConnectionError",
+                    "model": self.model
+                }
+            )
+            raise RuntimeError(
+                "Cannot connect to OCR service. Please check your internet connection and try again."
+            ) from e
+
+        except APIError as e:
+            logger.error(
+                f"OpenAI API error: {e}",
+                extra={
+                    "error_type": "APIError",
+                    "model": self.model,
+                    "status_code": getattr(e, "status_code", None)
+                }
+            )
+            raise RuntimeError(
+                f"OCR service error: {str(e)}. Please try again later."
+            ) from e
+
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"Failed to parse OpenAI response as JSON: {e}",
+                extra={
+                    "error_type": "JSONDecodeError",
+                    "model": self.model
+                }
+            )
+            raise ValueError(
+                "OCR service returned invalid data. Please try uploading the screenshot again."
+            ) from e
+
+        except Exception as e:
+            logger.error(
+                f"Unexpected OpenAI API error: {type(e).__name__}: {e}",
+                extra={
+                    "error_type": type(e).__name__,
+                    "model": self.model
+                },
+                exc_info=True
+            )
+            raise RuntimeError(
+                f"Unexpected OCR error: {str(e)}"
+            ) from e
