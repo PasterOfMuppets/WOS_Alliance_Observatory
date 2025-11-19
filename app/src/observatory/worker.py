@@ -63,8 +63,8 @@ def process_pipeline_job(job: PipelineJob) -> None:
         logger.warning("Pipeline not initialized; skipping job")
         return
 
-    if not job.manifest_path.exists():
-        logger.warning("Manifest %s not found", job.manifest_path)
+    if not job.manifest_path.is_file():
+        logger.warning("Manifest %s is not a file or not found", job.manifest_path)
         return
 
     samples = load_manifest(job.manifest_path)
