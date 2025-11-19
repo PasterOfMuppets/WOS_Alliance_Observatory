@@ -124,7 +124,7 @@ async def login(
         )
 
     # Update last login
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.utcnow()
     session.commit()
 
     # Create access token
