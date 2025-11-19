@@ -416,6 +416,7 @@ async def get_foundry_events(
                 "won": e.won,
                 "signups_count": len(e.signups),
                 "results_count": len(e.results),
+                "no_shows_count": len(e.signups) - len(e.results) if e.signups and e.results else 0,
                 "top_results": [
                     {
                         "rank": r.rank,
@@ -427,6 +428,47 @@ async def get_foundry_events(
             }
             for e in events
         ]
+    }
+
+
+@app.get("/api/events/foundry/{event_id}/no-shows")
+async def get_foundry_no_shows(
+    event_id: int,
+    current_user: models.User = Depends(auth.get_current_active_user),
+    session: Session = Depends(auth.get_session)
+):
+    """Get players who signed up but didn't participate (no-shows)."""
+    # Get the foundry event
+    event = session.get(models.FoundryEvent, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Foundry event not found")
+
+    # Get all player IDs who signed up
+    signup_player_ids = {signup.player_id for signup in event.signups}
+
+    # Get all player IDs who have results
+    result_player_ids = {result.player_id for result in event.results}
+
+    # Calculate no-shows (signed up but no result)
+    no_show_player_ids = signup_player_ids - result_player_ids
+
+    # Get player details for no-shows
+    no_shows = []
+    for signup in event.signups:
+        if signup.player_id in no_show_player_ids:
+            no_shows.append({
+                "player_id": signup.player_id,
+                "player_name": signup.player.name,
+                "legion_id": signup.legion_id
+            })
+
+    return {
+        "event_id": event_id,
+        "event_date": event.event_date.isoformat(),
+        "signups_count": len(signup_player_ids),
+        "participated_count": len(result_player_ids),
+        "no_shows_count": len(no_show_player_ids),
+        "no_shows": sorted(no_shows, key=lambda x: x["player_name"])
     }
 
 

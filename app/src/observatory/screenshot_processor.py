@@ -23,14 +23,20 @@ class ScreenshotProcessor:
         self.alliance_id = alliance_id
         self.extractor = OpenAIVisionExtractor(model="gpt-4o-mini")
 
-    def detect_screenshot_type(self, image_path: Path) -> str:
+    def detect_screenshot_type(self, image_path: Path) -> dict[str, Any]:
         """
         Detect what type of screenshot this is by analyzing the image.
 
-        Returns one of: alliance_members, bear_damage, bear_overview,
-                       foundry_signup, foundry_result, ac_signup,
-                       contribution, alliance_power, unknown
+        Returns dict with:
+            - type: one of alliance_members, bear_damage, bear_overview,
+                   foundry_signup, foundry_result, ac_signup,
+                   contribution, alliance_power, unknown
+            - confidence: float 0.0-1.0
+            - method: "ai", "heuristic", or "fallback"
         """
+        # First try heuristic detection based on filename
+        heuristic_result = self._detect_type_heuristic(image_path)
+
         # Use AI to detect screenshot type
         try:
             from openai import OpenAI
@@ -60,8 +66,10 @@ Identify which type of screen this is from the following options:
 
 IMPORTANT: Check for "Hunt successful!" and "Rallies:" to identify bear_overview. Check for "Damage Rewards" to identify bear_damage.
 
-Return ONLY a JSON object with one field:
-{"type": "alliance_members"}
+Return ONLY a JSON object with two fields:
+{"type": "alliance_members", "confidence": 0.95}
+
+Where confidence is a number between 0.0 (not sure) and 1.0 (very confident).
 
 No extra commentary.
 """
@@ -80,12 +88,65 @@ No extra commentary.
 
             result = json.loads(response.choices[0].message.content)
             detected_type = result.get("type", "unknown")
-            logger.info(f"Detected screenshot type: {detected_type} for {image_path.name}")
-            return detected_type
+            confidence = result.get("confidence", 0.8)
+
+            logger.info(f"AI detected screenshot type: {detected_type} (confidence: {confidence:.2f}) for {image_path.name}")
+
+            # If AI is uncertain and heuristic has a strong signal, use heuristic
+            if confidence < 0.7 and heuristic_result["confidence"] > 0.8:
+                logger.info(f"Using heuristic result instead: {heuristic_result['type']}")
+                return heuristic_result
+
+            return {
+                "type": detected_type,
+                "confidence": float(confidence),
+                "method": "ai"
+            }
 
         except Exception as e:
-            logger.error(f"Failed to detect screenshot type: {e}")
-            return "unknown"
+            logger.error(f"Failed to detect screenshot type with AI: {e}")
+            logger.info(f"Falling back to heuristic detection")
+            return heuristic_result
+
+    def _detect_type_heuristic(self, image_path: Path) -> dict[str, Any]:
+        """
+        Heuristic-based screenshot type detection using filename patterns.
+
+        Returns dict with type, confidence, and method.
+        """
+        filename = image_path.name.lower()
+
+        # Check filename patterns
+        if "alliance" in filename and "member" in filename:
+            return {"type": "alliance_members", "confidence": 0.85, "method": "heuristic"}
+
+        if "bear" in filename:
+            if "overview" in filename or "success" in filename:
+                return {"type": "bear_overview", "confidence": 0.85, "method": "heuristic"}
+            elif "damage" in filename or "reward" in filename:
+                return {"type": "bear_damage", "confidence": 0.85, "method": "heuristic"}
+            else:
+                return {"type": "bear_damage", "confidence": 0.6, "method": "heuristic"}
+
+        if "foundry" in filename:
+            if "signup" in filename or "combatant" in filename:
+                return {"type": "foundry_signup", "confidence": 0.85, "method": "heuristic"}
+            elif "result" in filename or "arsenal" in filename:
+                return {"type": "foundry_result", "confidence": 0.85, "method": "heuristic"}
+            else:
+                return {"type": "foundry_result", "confidence": 0.6, "method": "heuristic"}
+
+        if ("ac" in filename or "championship" in filename) and ("signup" in filename or "lane" in filename):
+            return {"type": "ac_signup", "confidence": 0.85, "method": "heuristic"}
+
+        if "contribution" in filename:
+            return {"type": "contribution", "confidence": 0.85, "method": "heuristic"}
+
+        if "alliance" in filename and "power" in filename:
+            return {"type": "alliance_power", "confidence": 0.85, "method": "heuristic"}
+
+        # Default: unknown with low confidence
+        return {"type": "unknown", "confidence": 0.1, "method": "heuristic"}
 
     def process_screenshot(
         self,
@@ -105,8 +166,10 @@ No extra commentary.
             Dict with processing results
         """
         # Detect type if not provided
+        detection_result = None
         if not screenshot_type:
-            screenshot_type = self.detect_screenshot_type(image_path)
+            detection_result = self.detect_screenshot_type(image_path)
+            screenshot_type = detection_result["type"]
 
         # Extract timestamp
         timestamp = extract_timestamp(image_path)
@@ -122,6 +185,11 @@ No extra commentary.
             "message": "",
             "records_saved": 0
         }
+
+        # Include detection metadata if available
+        if detection_result:
+            result["confidence"] = detection_result.get("confidence", 0.0)
+            result["detection_method"] = detection_result.get("method", "unknown")
 
         try:
             if screenshot_type == "alliance_members":

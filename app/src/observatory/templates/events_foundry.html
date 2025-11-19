@@ -108,8 +108,19 @@
                     </div>
                     <div style="margin-bottom: 15px;">
                         <strong>Signups:</strong> ${event.signups_count} players
-                        ${event.results_count > 0 ? `| <strong>Results:</strong> ${event.results_count} players participated` : ''}
+                        ${event.results_count > 0 ? `| <strong>Participated:</strong> ${event.results_count} players` : ''}
+                        ${event.no_shows_count > 0 ? `| <span style="color: #ff6b6b;"><strong>No-Shows:</strong> ${event.no_shows_count}</span>` : ''}
                     </div>
+                    ${event.no_shows_count > 0 ? `
+                        <details style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border-left: 3px solid #ff6b6b;">
+                            <summary style="cursor: pointer; font-weight: bold; color: #856404;">
+                                ⚠️ View No-Shows (${event.no_shows_count} player${event.no_shows_count !== 1 ? 's' : ''})
+                            </summary>
+                            <div id="no-shows-${event.id}" style="margin-top: 10px; padding: 10px;">
+                                <p style="font-style: italic; color: #666;">Loading...</p>
+                            </div>
+                        </details>
+                    ` : ''}
                     ${event.top_results && event.top_results.length > 0 ? `
                         <div class="event-scores">
                             <h4>Top Performers (${event.results_count} total)</h4>
@@ -142,6 +153,62 @@
                     ` : '<p style="color: #666; font-style: italic;">No results recorded</p>'}
                 </div>
             `).join('');
+
+            // Attach event listeners to the new details elements
+            attachNoShowsListeners();
+        }
+
+        async function loadNoShows(eventId) {
+            const container = document.getElementById(`no-shows-${eventId}`);
+            if (container.dataset.loaded) {
+                return; // Already loaded
+            }
+
+            try {
+                const response = await fetch(`/api/events/foundry/${eventId}/no-shows`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load no-shows');
+                }
+
+                const data = await response.json();
+
+                if (data.no_shows.length === 0) {
+                    container.innerHTML = '<p style="color: #666; font-style: italic;">No players missed this event.</p>';
+                } else {
+                    container.innerHTML = `
+                        <p style="margin-bottom: 8px;">
+                            ${data.no_shows_count} player${data.no_shows_count !== 1 ? 's' : ''} signed up but did not participate:
+                        </p>
+                        <ul style="margin: 0; padding-left: 20px; list-style-type: disc;">
+                            ${data.no_shows.map(ns => `
+                                <li>${ns.player_name} (Legion ${ns.legion_id})</li>
+                            `).join('')}
+                        </ul>
+                    `;
+                }
+
+                container.dataset.loaded = 'true';
+            } catch (error) {
+                console.error('Failed to load no-shows:', error);
+                container.innerHTML = '<p style="color: red; font-style: italic;">Failed to load no-shows data.</p>';
+            }
+        }
+
+        // Add event listeners to details elements after rendering
+        function attachNoShowsListeners() {
+            document.querySelectorAll('details').forEach(details => {
+                details.addEventListener('toggle', function() {
+                    if (this.open) {
+                        const eventId = this.querySelector('[id^="no-shows-"]').id.split('-')[2];
+                        loadNoShows(eventId);
+                    }
+                });
+            });
         }
 
         document.getElementById('legionFilter').addEventListener('change', renderEvents);
