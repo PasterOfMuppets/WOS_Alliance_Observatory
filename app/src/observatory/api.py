@@ -609,7 +609,7 @@ async def get_foundry_event_results(
     event_id: int,
     legion: int | None = None,
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Get complete results for a specific foundry event with optional legion filtering.

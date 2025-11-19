@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import models
-from .db.session import get_session
+from .db.session import SessionLocal, get_session
 
 # Configuration
 SECRET_KEY = "your-secret-key-change-this-in-production"  # TODO: Move to .env
