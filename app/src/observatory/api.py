@@ -1,8 +1,7 @@
 """FastAPI application entrypoint that orchestrates API + worker."""
 from __future__ import annotations
 
-import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, status
@@ -94,7 +93,7 @@ async def root(request: Request):
 @app.post("/api/login")
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Authenticate user and return JWT access token.
@@ -125,7 +124,7 @@ async def login(
         )
 
     # Update last login
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     session.commit()
 
     # Create access token
@@ -142,7 +141,7 @@ async def register(
     username: str = Form(...),
     password: str = Form(...),
     email: str | None = Form(None),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Create a new user account.
@@ -281,7 +280,7 @@ async def events_contribution_page(request: Request):
 @app.get("/api/players")
 async def get_players(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Get all active players for the current user's alliance.
@@ -326,7 +325,7 @@ async def get_players(
 async def player_history(
     player_id: int,
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Get complete historical timeline for a specific player.
@@ -411,7 +410,7 @@ async def player_history(
 @app.get("/api/events/bear")
 async def get_bear_events(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Get all bear hunting events with participant scores, organized by trap.
@@ -488,7 +487,7 @@ async def update_bear_event(
     event_id: int,
     started_at: str,
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Update the start time for a bear hunting event.
@@ -542,7 +541,7 @@ async def update_bear_event(
 @app.get("/api/events/foundry")
 async def get_foundry_events(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Get all foundry events with summary statistics and top performers.
@@ -742,7 +741,7 @@ async def get_foundry_no_shows(
 @app.get("/api/events/ac")
 async def get_ac_events(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Get all Alliance Conflict (AC) events with summary statistics.
@@ -789,7 +788,7 @@ async def get_ac_events(
 @app.get("/api/events/contribution")
 async def get_contribution_snapshots(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Get weekly contribution tracking data with the latest snapshot for each week.
@@ -865,7 +864,7 @@ async def get_contribution_snapshots(
 async def upload_screenshots(
     files: list[UploadFile],
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """
     Bulk upload and process game screenshots with OCR extraction.
