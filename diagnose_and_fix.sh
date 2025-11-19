@@ -127,7 +127,7 @@ RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:7500/api/login \
   -d "username=admin&password=admin123")
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-BODY=$(echo "$RESPONSE" | head -n-1)
+BODY=$(echo "$RESPONSE" | sed '$d')  # Remove last line (portable for macOS/Linux)
 
 if [ "$HTTP_CODE" -eq 200 ]; then
     echo -e "${GREEN}✓✓✓ Login successful! ${NC}"
