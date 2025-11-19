@@ -20,6 +20,7 @@ def save_contribution_snapshot_ocr(
     snapshot_date: datetime,
     players_data: list[dict[str, Any]],
     recorded_at: datetime,
+    screenshot_filename: str | None = None,
 ) -> dict[str, int]:
     """
     Save contribution snapshot OCR results to database.
@@ -31,6 +32,7 @@ def save_contribution_snapshot_ocr(
         snapshot_date: Date of this snapshot (which day of week, UTC)
         players_data: List of player dicts with rank, name, contribution
         recorded_at: When the screenshot was taken (UTC)
+        screenshot_filename: Optional filename of the screenshot for logging
 
     Returns:
         Dict with count: {"snapshots": N}
@@ -59,7 +61,8 @@ def save_contribution_snapshot_ocr(
         player = session.execute(stmt).scalar_one_or_none()
 
         if player is None:
-            logger.warning(f"Player not found: {player_name} (from {name}), skipping contribution")
+            source_info = f" in {screenshot_filename}" if screenshot_filename else ""
+            logger.warning(f"Player not found: {player_name} (from {name}){source_info}, skipping contribution")
             continue
 
         contribution_amount = player_data.get("contribution", 0)

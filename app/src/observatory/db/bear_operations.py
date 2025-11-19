@@ -131,6 +131,7 @@ def save_bear_event_ocr(
     started_at: datetime,
     players_data: list[dict[str, Any]],
     recorded_at: datetime,
+    screenshot_filename: str | None = None,
 ) -> dict[str, int]:
     """
     Save bear event OCR results to database.
@@ -144,6 +145,7 @@ def save_bear_event_ocr(
         started_at: When the bear trap started (UTC)
         players_data: List of player dicts with name, damage_points, rank
         recorded_at: When the screenshot was taken (UTC)
+        screenshot_filename: Optional filename of the screenshot for logging
 
     Returns:
         Dict with counts: {"event_id": N, "scores_added": M, "scores_updated": K, "scores_skipped": L}
@@ -174,7 +176,8 @@ def save_bear_event_ocr(
         player = session.execute(stmt).scalar_one_or_none()
 
         if player is None:
-            logger.warning(f"Player not found: {player_name} (from {name}), skipping bear score")
+            source_info = f" in {screenshot_filename}" if screenshot_filename else ""
+            logger.warning(f"Player not found: {player_name} (from {name}){source_info}, skipping bear score")
             continue
 
         damage_points = player_data.get("damage_points", 0)

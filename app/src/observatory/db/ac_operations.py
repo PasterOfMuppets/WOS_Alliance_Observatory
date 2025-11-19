@@ -99,6 +99,7 @@ def save_ac_signup_ocr(
     week_start_date: datetime,
     signup_data: dict[str, Any],
     recorded_at: datetime,
+    screenshot_filename: str | None = None,
 ) -> dict[str, int]:
     """
     Save AC signup OCR results to database.
@@ -110,6 +111,7 @@ def save_ac_signup_ocr(
         week_start_date: Week start date (Monday of AC week, UTC)
         signup_data: Dict with total_registered, total_power, players
         recorded_at: When the screenshot was taken (UTC)
+        screenshot_filename: Optional filename of the screenshot for logging
 
     Returns:
         Dict with counts: {"event_id": N, "signups": M}
@@ -149,7 +151,8 @@ def save_ac_signup_ocr(
         player = session.execute(stmt).scalar_one_or_none()
 
         if player is None:
-            logger.warning(f"Player not found: {player_name} (from {name}), skipping AC signup")
+            source_info = f" in {screenshot_filename}" if screenshot_filename else ""
+            logger.warning(f"Player not found: {player_name} (from {name}){source_info}, skipping AC signup")
             continue
 
         ac_power = player_data.get("ac_power", 0)

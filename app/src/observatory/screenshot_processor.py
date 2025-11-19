@@ -358,7 +358,8 @@ No extra commentary.
             trap_id,
             timestamp,
             players,
-            timestamp
+            timestamp,
+            screenshot_filename=image_path.name
         )
         return len(players)
 
@@ -367,6 +368,7 @@ No extra commentary.
         from .db.foundry_operations import save_foundry_signup_ocr
 
         data = self.extractor.extract_foundry_signup(image_path)
+        legion_number = data.get("legion_number", 1)
         # Estimate event date as next Sunday from timestamp
         from datetime import timedelta
         days_until_sunday = (6 - timestamp.weekday()) % 7
@@ -375,7 +377,8 @@ No extra commentary.
         event_date = timestamp + timedelta(days=days_until_sunday)
 
         result = save_foundry_signup_ocr(
-            session, self.alliance_id, data, event_date, timestamp
+            session, self.alliance_id, legion_number, event_date, data, timestamp,
+            screenshot_filename=image_path.name
         )
         return result.get("signups", 0)
 
@@ -384,13 +387,16 @@ No extra commentary.
         from .db.foundry_operations import save_foundry_result_ocr
 
         data = self.extractor.extract_foundry_result(image_path)
+        legion_number = data.get("legion_number", 1)
+        players_data = data.get("players", [])
         # Results are from previous Sunday
         from datetime import timedelta
         days_since_sunday = (timestamp.weekday() + 1) % 7
         event_date = timestamp - timedelta(days=days_since_sunday)
 
         result = save_foundry_result_ocr(
-            session, self.alliance_id, 1, data, event_date, timestamp
+            session, self.alliance_id, legion_number, event_date, players_data, timestamp,
+            screenshot_filename=image_path.name
         )
         return result.get("results", 0)
 
@@ -405,7 +411,8 @@ No extra commentary.
         week_start = timestamp - timedelta(days=days_since_monday)
 
         result = save_ac_signup_ocr(
-            session, self.alliance_id, data, week_start, timestamp
+            session, self.alliance_id, week_start, data, timestamp,
+            screenshot_filename=image_path.name
         )
         return result.get("signups", 0)
 
@@ -420,7 +427,8 @@ No extra commentary.
         week_start = timestamp - timedelta(days=days_since_monday)
 
         result = save_contribution_snapshot_ocr(
-            session, self.alliance_id, week_start, timestamp, data.get("players", []), timestamp
+            session, self.alliance_id, week_start, timestamp, data.get("players", []), timestamp,
+            screenshot_filename=image_path.name
         )
         return result.get("snapshots", 0)
 
