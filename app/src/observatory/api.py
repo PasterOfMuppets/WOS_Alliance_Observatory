@@ -93,7 +93,7 @@ async def root(request: Request):
 @app.post("/api/login")
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Login endpoint - returns JWT token."""
     user = auth.authenticate_user(session, form_data.username, form_data.password)
@@ -122,7 +122,7 @@ async def register(
     username: str = Form(...),
     password: str = Form(...),
     email: str | None = Form(None),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Register a new user."""
     # Check if user exists
@@ -228,7 +228,7 @@ async def events_contribution_page(request: Request):
 @app.get("/api/players")
 async def get_players(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Get all players for current user's alliance."""
     alliance_id = current_user.default_alliance_id or 1
@@ -259,7 +259,7 @@ async def get_players(
 async def player_history(
     player_id: int,
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Get historical data for a player (power, furnace, and bear trap scores)."""
     # Get power history
@@ -304,7 +304,7 @@ async def player_history(
 @app.get("/api/events/bear")
 async def get_bear_events(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Get all bear events with scores, grouped by trap."""
     alliance_id = current_user.default_alliance_id or 1
@@ -357,7 +357,7 @@ async def update_bear_event(
     event_id: int,
     started_at: str,
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Update bear event start time."""
     from datetime import datetime
@@ -391,7 +391,7 @@ async def update_bear_event(
 @app.get("/api/events/foundry")
 async def get_foundry_events(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Get all foundry events with signups and results."""
     alliance_id = current_user.default_alliance_id or 1
@@ -432,7 +432,7 @@ async def get_foundry_events(
 @app.get("/api/events/ac")
 async def get_ac_events(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Get all AC events."""
     alliance_id = current_user.default_alliance_id or 1
@@ -460,7 +460,7 @@ async def get_ac_events(
 @app.get("/api/events/contribution")
 async def get_contribution_snapshots(
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Get contribution snapshots - returns latest snapshot for each week."""
     alliance_id = current_user.default_alliance_id or 1
@@ -514,7 +514,7 @@ async def get_contribution_snapshots(
 async def upload_screenshots(
     files: list[UploadFile],
     current_user: models.User = Depends(auth.get_current_active_user),
-    session: Session = Depends(auth.get_session)
+    session: Session = Depends(get_session)
 ):
     """Bulk upload screenshots for processing."""
     from .screenshot_processor import ScreenshotProcessor

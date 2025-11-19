@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import models
-from .db.session import SessionLocal
+from .db.session import get_session
 
 # Configuration
 SECRET_KEY = "your-secret-key-change-this-in-production"  # TODO: Move to .env
@@ -25,15 +25,6 @@ pwd_context = CryptContext(schemes=["sha256_crypt", "bcrypt"], deprecated="auto"
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
-
-
-def get_session():
-    """Dependency to get database session."""
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
