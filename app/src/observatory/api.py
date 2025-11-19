@@ -262,7 +262,7 @@ async def player_history(
     current_user: models.User = Depends(auth.get_current_active_user),
     session: Session = Depends(auth.get_session)
 ):
-    """Get historical data for a player (power, furnace, and bear trap scores)."""
+    """Get historical data for a player (power, furnace, bear trap scores, and foundry results)."""
     # Get power history
     power_stmt = select(models.PlayerPowerHistory).where(
         models.PlayerPowerHistory.player_id == player_id
@@ -281,6 +281,12 @@ async def player_history(
     ).order_by(models.BearScore.recorded_at)
     bear_scores = session.execute(bear_stmt).scalars().all()
 
+    # Get foundry results history
+    foundry_stmt = select(models.FoundryResult).where(
+        models.FoundryResult.player_id == player_id
+    ).order_by(models.FoundryResult.recorded_at.desc())
+    foundry_results = session.execute(foundry_stmt).scalars().all()
+
     return {
         "power": [
             {"date": ph.captured_at.isoformat(), "value": ph.power}
@@ -298,6 +304,16 @@ async def player_history(
                 "trap_id": bs.bear_event.trap_id
             }
             for bs in bear_scores
+        ],
+        "foundry_results": [
+            {
+                "date": fr.recorded_at.isoformat(),
+                "event_date": fr.foundry_event.event_date.isoformat(),
+                "legion_id": fr.legion_id,
+                "score": fr.score,
+                "rank": fr.rank
+            }
+            for fr in foundry_results
         ]
     }
 
@@ -427,6 +443,47 @@ async def get_foundry_events(
                 ]
             }
             for e in events
+        ]
+    }
+
+
+@app.get("/api/events/foundry/{event_id}/results")
+async def get_foundry_event_results(
+    event_id: int,
+    legion: int | None = None,
+    current_user: models.User = Depends(auth.get_current_active_user),
+    session: Session = Depends(auth.get_session)
+):
+    """Get all results for a specific foundry event, optionally filtered by legion."""
+    # Get the foundry event
+    event = session.get(models.FoundryEvent, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Foundry event not found")
+
+    # Get all results
+    results = event.results
+
+    # Filter by legion if specified
+    if legion is not None:
+        results = [r for r in results if r.legion_id == legion]
+
+    # Sort by score (descending)
+    sorted_results = sorted(results, key=lambda x: x.score if x.score else 0, reverse=True)
+
+    return {
+        "event_id": event_id,
+        "event_date": event.event_date.isoformat(),
+        "legion_number": event.legion_number,
+        "total_results": len(sorted_results),
+        "results": [
+            {
+                "rank": r.rank,
+                "player_id": r.player_id,
+                "player_name": r.player.name,
+                "legion_id": r.legion_id,
+                "score": r.score
+            }
+            for r in sorted_results
         ]
     }
 

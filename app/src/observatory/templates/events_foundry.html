@@ -123,7 +123,7 @@
                     ` : ''}
                     ${event.top_results && event.top_results.length > 0 ? `
                         <div class="event-scores">
-                            <h4>Top Performers (${event.results_count} total)</h4>
+                            <h4>Top 10 Performers (${event.results_count} total)</h4>
                             <table class="scores-table">
                                 <thead>
                                     <tr>
@@ -140,15 +140,28 @@
                                             <td>${score.score.toLocaleString()}</td>
                                         </tr>
                                     `).join('')}
-                                    ${event.results_count > 10 ? `
-                                        <tr>
-                                            <td colspan="3" style="text-align: center; color: #666; font-style: italic;">
-                                                ... and ${event.results_count - 10} more players
-                                            </td>
-                                        </tr>
-                                    ` : ''}
                                 </tbody>
                             </table>
+                            ${event.results_count > 10 ? `
+                                <details style="margin-top: 15px;">
+                                    <summary style="cursor: pointer; font-weight: bold; color: #667eea; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+                                        📊 View All ${event.results_count} Players
+                                    </summary>
+                                    <div id="all-results-${event.id}" style="margin-top: 10px;">
+                                        <div style="margin-bottom: 10px;">
+                                            <label>Filter by Legion: </label>
+                                            <select id="legion-filter-${event.id}" onchange="filterResultsByLegion(${event.id}, this.value)">
+                                                <option value="">All Legions</option>
+                                                <option value="1">Legion 1</option>
+                                                <option value="2">Legion 2</option>
+                                            </select>
+                                        </div>
+                                        <div id="all-results-table-${event.id}">
+                                            <p style="font-style: italic; color: #666;">Loading...</p>
+                                        </div>
+                                    </div>
+                                </details>
+                            ` : ''}
                         </div>
                     ` : '<p style="color: #666; font-style: italic;">No results recorded</p>'}
                 </div>
@@ -199,13 +212,98 @@
             }
         }
 
+        const allResultsCache = {};
+
+        async function loadAllResults(eventId, legion = null) {
+            const cacheKey = `${eventId}_${legion || 'all'}`;
+
+            // Check cache
+            if (allResultsCache[cacheKey]) {
+                displayAllResults(eventId, allResultsCache[cacheKey]);
+                return;
+            }
+
+            const container = document.getElementById(`all-results-table-${eventId}`);
+
+            try {
+                const url = `/api/events/foundry/${eventId}/results${legion ? `?legion=${legion}` : ''}`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load results');
+                }
+
+                const data = await response.json();
+                allResultsCache[cacheKey] = data;
+                displayAllResults(eventId, data);
+            } catch (error) {
+                console.error('Failed to load all results:', error);
+                container.innerHTML = '<p style="color: red; font-style: italic;">Failed to load results data.</p>';
+            }
+        }
+
+        function displayAllResults(eventId, data) {
+            const container = document.getElementById(`all-results-table-${eventId}`);
+
+            if (data.results.length === 0) {
+                container.innerHTML = '<p style="color: #666; font-style: italic;">No results found.</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <p style="margin-bottom: 10px; color: #666;">
+                    Showing ${data.total_results} player${data.total_results !== 1 ? 's' : ''}
+                </p>
+                <table class="scores-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Legion</th>
+                            <th>Arsenal Points</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.results.map(r => `
+                            <tr>
+                                <td>${r.rank || '-'}</td>
+                                <td>${r.player_name}</td>
+                                <td>Legion ${r.legion_id}</td>
+                                <td>${r.score.toLocaleString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function filterResultsByLegion(eventId, legion) {
+            const legionValue = legion === '' ? null : parseInt(legion);
+            loadAllResults(eventId, legionValue);
+        }
+
         // Add event listeners to details elements after rendering
         function attachNoShowsListeners() {
             document.querySelectorAll('details').forEach(details => {
                 details.addEventListener('toggle', function() {
                     if (this.open) {
-                        const eventId = this.querySelector('[id^="no-shows-"]').id.split('-')[2];
-                        loadNoShows(eventId);
+                        // Check if this is a no-shows details element
+                        const noShowsEl = this.querySelector('[id^="no-shows-"]');
+                        if (noShowsEl) {
+                            const eventId = noShowsEl.id.split('-')[2];
+                            loadNoShows(eventId);
+                        }
+
+                        // Check if this is an all-results details element
+                        const allResultsEl = this.querySelector('[id^="all-results-"]');
+                        if (allResultsEl) {
+                            const eventId = allResultsEl.id.split('-')[2];
+                            loadAllResults(eventId);
+                        }
                     }
                 });
             });
