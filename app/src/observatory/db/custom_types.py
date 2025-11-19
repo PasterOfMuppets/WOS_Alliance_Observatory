@@ -14,18 +14,21 @@ class TZDateTime(TypeDecorator):
     doesn't always preserve the timezone suffix. This custom type ensures
     all datetimes are stored with explicit timezone info (+00:00 for UTC).
     """
-    impl = DateTime
+    impl = DateTime(timezone=False)
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
         """Convert Python datetime to database value."""
         if value is not None:
-            # Ensure timezone-aware
-            if value.tzinfo is None:
-                value = pytz.UTC.localize(value)
-            # For SQLite, return ISO format string with timezone
+            # For SQLite, convert to ISO format string (SQLite stores as text)
             if dialect.name == 'sqlite':
+                # Ensure timezone-aware before converting to ISO string
+                if value.tzinfo is None:
+                    value = pytz.UTC.localize(value)
                 return value.isoformat()
+            # For other databases, ensure timezone-aware
+            elif value.tzinfo is None:
+                value = pytz.UTC.localize(value)
         return value
 
     def process_result_value(self, value, dialect):
