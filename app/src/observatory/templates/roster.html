@@ -60,7 +60,15 @@
                 </div>
                 <div class="chart-box">
                     <h3>Bear Trap Scores</h3>
-                    <canvas id="bearScoresChart"></canvas>
+                    <div id="bearScoresTable" style="max-height: 300px; overflow-y: auto;">
+                        <p style="font-style: italic; color: #666;">Loading...</p>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3>Foundry Battle History</h3>
+                    <div id="foundryHistory" style="max-height: 300px; overflow-y: auto;">
+                        <p style="font-style: italic; color: #666;">Loading...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -80,7 +88,6 @@
 
         let powerChart = null;
         let furnaceChart = null;
-        let bearScoresChart = null;
 
         // Load players from API
         async function loadPlayers() {
@@ -145,7 +152,6 @@
                 // Destroy existing charts
                 if (powerChart) powerChart.destroy();
                 if (furnaceChart) furnaceChart.destroy();
-                if (bearScoresChart) bearScoresChart.destroy();
 
                 // Power chart
                 const powerCtx = document.getElementById('powerChart').getContext('2d');
@@ -203,87 +209,126 @@
                     }
                 });
 
-                // Bear Trap Scores chart
+                // Bear Trap Scores table
+                const bearScoresDiv = document.getElementById('bearScoresTable');
                 if (data.bear_scores && data.bear_scores.length > 0) {
-                    // Separate trap 1 and trap 2 scores
-                    const trap1Scores = data.bear_scores.filter(s => s.trap_id === 1);
-                    const trap2Scores = data.bear_scores.filter(s => s.trap_id === 2);
+                    // Sort by date descending (most recent first)
+                    const sortedScores = [...data.bear_scores].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                    const bearScoresCtx = document.getElementById('bearScoresChart').getContext('2d');
-                    bearScoresChart = new Chart(bearScoresCtx, {
-                        type: 'line',
-                        data: {
-                            labels: data.bear_scores.map(s => new Date(s.date).toLocaleDateString()),
-                            datasets: [
-                                {
-                                    label: 'Trap 1 Score',
-                                    data: data.bear_scores.map(s => s.trap_id === 1 ? s.score : null),
-                                    borderColor: 'rgb(153, 102, 255)',
-                                    backgroundColor: 'rgba(153, 102, 255, 0.1)',
-                                    tension: 0.1,
-                                    spanGaps: true
-                                },
-                                {
-                                    label: 'Trap 2 Score',
-                                    data: data.bear_scores.map(s => s.trap_id === 2 ? s.score : null),
-                                    borderColor: 'rgb(255, 159, 64)',
-                                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
-                                    tension: 0.1,
-                                    spanGaps: true
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: {
-                                        callback: function(value) {
-                                            return value.toLocaleString();
-                                        }
-                                    }
-                                }
-                            },
-                            plugins: {
-                                tooltip: {
-                                    callbacks: {
-                                        label: function(context) {
-                                            const score = data.bear_scores[context.dataIndex];
-                                            if (score.trap_id !== (context.datasetIndex + 1)) return null;
-                                            return `${context.dataset.label}: ${score.score.toLocaleString()} (Rank: ${score.rank || 'N/A'})`;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
+                    bearScoresDiv.innerHTML = `
+                        <table class="scores-table" style="font-size: 14px;">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortBearScores('date')" style="cursor: pointer;">Date ↕</th>
+                                    <th onclick="sortBearScores('trap')" style="cursor: pointer;">Trap ↕</th>
+                                    <th onclick="sortBearScores('score')" style="cursor: pointer;">Score ↕</th>
+                                    <th onclick="sortBearScores('rank')" style="cursor: pointer;">Rank ↕</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bearScoresBody">
+                                ${sortedScores.map(bs => `
+                                    <tr>
+                                        <td>${new Date(bs.date).toLocaleDateString()}</td>
+                                        <td>Trap ${bs.trap_id}</td>
+                                        <td>${bs.score.toLocaleString()}</td>
+                                        <td>${bs.rank || '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+
+                    // Store scores for sorting
+                    window.bearScoresData = sortedScores;
+                    window.bearScoresSortDirection = {date: 'desc', trap: 'asc', score: 'asc', rank: 'asc'};
                 } else {
-                    // Show message if no bear scores
-                    const bearScoresCtx = document.getElementById('bearScoresChart').getContext('2d');
-                    bearScoresChart = new Chart(bearScoresCtx, {
-                        type: 'line',
-                        data: {
-                            labels: [],
-                            datasets: []
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                }
-                            }
-                        }
-                    });
+                    bearScoresDiv.innerHTML = '<p style="text-align: center; color: #666; font-style: italic; padding: 20px;">No bear scores available</p>';
+                }
+
+                // Foundry Battle History
+                const foundryHistoryDiv = document.getElementById('foundryHistory');
+                if (data.foundry_results && data.foundry_results.length > 0) {
+                    foundryHistoryDiv.innerHTML = `
+                        <table class="scores-table" style="font-size: 14px;">
+                            <thead>
+                                <tr>
+                                    <th>Event Date</th>
+                                    <th>Legion</th>
+                                    <th>Rank</th>
+                                    <th>Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.foundry_results.map(fr => `
+                                    <tr>
+                                        <td>${new Date(fr.event_date).toLocaleDateString()}</td>
+                                        <td>Legion ${fr.legion_id}</td>
+                                        <td>${fr.rank || '-'}</td>
+                                        <td>${fr.score.toLocaleString()}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    foundryHistoryDiv.innerHTML = '<p style="text-align: center; color: #666; font-style: italic; padding: 20px;">No foundry battle history available</p>';
                 }
 
             } catch (error) {
                 alert('Failed to load player history');
                 closeModal();
             }
+        }
+
+        function sortBearScores(column) {
+            if (!window.bearScoresData) return;
+
+            const data = window.bearScoresData;
+            const directions = window.bearScoresSortDirection;
+
+            // Toggle direction
+            directions[column] = directions[column] === 'asc' ? 'desc' : 'asc';
+
+            // Sort data
+            data.sort((a, b) => {
+                let valA, valB;
+
+                switch(column) {
+                    case 'date':
+                        valA = new Date(a.date);
+                        valB = new Date(b.date);
+                        break;
+                    case 'trap':
+                        valA = a.trap_id;
+                        valB = b.trap_id;
+                        break;
+                    case 'score':
+                        valA = a.score;
+                        valB = b.score;
+                        break;
+                    case 'rank':
+                        valA = a.rank || 999;
+                        valB = b.rank || 999;
+                        break;
+                }
+
+                if (directions[column] === 'asc') {
+                    return valA > valB ? 1 : -1;
+                } else {
+                    return valA < valB ? 1 : -1;
+                }
+            });
+
+            // Re-render table body
+            const tbody = document.getElementById('bearScoresBody');
+            tbody.innerHTML = data.map(bs => `
+                <tr>
+                    <td>${new Date(bs.date).toLocaleDateString()}</td>
+                    <td>Trap ${bs.trap_id}</td>
+                    <td>${bs.score.toLocaleString()}</td>
+                    <td>${bs.rank || '-'}</td>
+                </tr>
+            `).join('');
         }
 
         function closeModal() {

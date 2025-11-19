@@ -180,6 +180,12 @@ def save_bear_event_ocr(
         damage_points = player_data.get("damage_points", 0)
         rank = player_data.get("rank")
 
+        # Skip unranked players (screenshot taker who didn't participate)
+        if rank is None or rank == "Unranked" or (isinstance(rank, str) and rank.lower() == "unranked"):
+            logger.debug(f"Skipping unranked player {player_name}")
+            scores_skipped += 1
+            continue
+
         # Check if this player already has a score for this event
         existing_score_stmt = select(models.BearScore).where(
             models.BearScore.bear_event_id == bear_event.id,

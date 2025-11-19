@@ -13,7 +13,12 @@ class Settings(BaseSettings):
     database_url: str = Field("sqlite:////data/observatory.db", alias="DATABASE_URL")
     ai_ocr_enabled: bool = Field(False, alias="AI_OCR_ENABLED")
     ai_ocr_model: str = Field("gpt-4o-mini", alias="AI_OCR_MODEL")
+    ai_ocr_rate_limit_delay: int = Field(12, alias="AI_OCR_RATE_LIMIT_DELAY")
     screenshot_timezone: str = Field("America/New_York", alias="SCREENSHOT_TIMEZONE")
+
+    # Screenshot cleanup settings
+    delete_successful_screenshots: bool = Field(True, alias="DELETE_SUCCESSFUL_SCREENSHOTS")
+    screenshot_retention_days: int = Field(7, alias="SCREENSHOT_RETENTION_DAYS")
 
     class Config:
         env_file = ".env"
