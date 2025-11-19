@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import models
+from .player_matching import find_player_with_fuzzy_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -53,16 +54,12 @@ def save_contribution_snapshot_ocr(
         if player_name.startswith("[") and "]" in player_name:
             player_name = player_name.split("]", 1)[1].strip()
 
-        # Find player in database
-        stmt = select(models.Player).where(
-            models.Player.alliance_id == alliance_id,
-            models.Player.name == player_name
+        # Find player in database (with fuzzy matching fallback)
+        player = find_player_with_fuzzy_fallback(
+            session, alliance_id, player_name, name, screenshot_filename
         )
-        player = session.execute(stmt).scalar_one_or_none()
 
         if player is None:
-            source_info = f" in {screenshot_filename}" if screenshot_filename else ""
-            logger.warning(f"Player not found: {player_name} (from {name}){source_info}, skipping contribution")
             continue
 
         contribution_amount = player_data.get("contribution", 0)
