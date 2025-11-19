@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
+from .custom_types import TZDateTime
 from .enums import EventStatType, PlayerStatus, ScreenshotStatus, ScreenshotType
 
 
@@ -22,8 +23,8 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     default_alliance_id: Mapped[int | None] = mapped_column(ForeignKey("alliances.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
+    last_login: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
 
     default_alliance: Mapped["Alliance"] = relationship(foreign_keys=[default_alliance_id])
 
@@ -34,7 +35,7 @@ class Alliance(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     tag: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     players: Mapped[list["Player"]] = relationship(back_populates="alliance", cascade="all, delete-orphan")
     screenshots: Mapped[list["Screenshot"]] = relationship(back_populates="alliance", cascade="all, delete-orphan")
@@ -55,8 +56,8 @@ class Player(Base):
     status: Mapped[PlayerStatus] = mapped_column(SAEnum(PlayerStatus, name="player_status"), default=PlayerStatus.ACTIVE)
     current_power: Mapped[int | None] = mapped_column(Integer, nullable=True)
     current_furnace: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now(), onupdate=func.now())
 
     alliance: Mapped[Alliance] = relationship(back_populates="players")
     power_history: Mapped[list["PlayerPowerHistory"]] = relationship(back_populates="player", cascade="all, delete-orphan")
@@ -74,9 +75,9 @@ class Screenshot(Base):
     status: Mapped[ScreenshotStatus] = mapped_column(SAEnum(ScreenshotStatus, name="screenshot_status"), default=ScreenshotStatus.PENDING, index=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_path: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    processed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     alliance: Mapped[Alliance] = relationship(back_populates="screenshots")
 
@@ -88,8 +89,8 @@ class PlayerPowerHistory(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), index=True)
     power: Mapped[int] = mapped_column(Integer)
-    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    captured_at: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     player: Mapped[Player] = relationship(back_populates="power_history")
 
@@ -101,8 +102,8 @@ class PlayerFurnaceHistory(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), index=True)
     furnace_level: Mapped[int] = mapped_column(Integer)
-    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    captured_at: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     player: Mapped[Player] = relationship(back_populates="furnace_history")
 
@@ -116,7 +117,7 @@ class EventStat(Base):
     metric_name: Mapped[str] = mapped_column(String(64))
     metric_value: Mapped[Numeric] = mapped_column(Numeric(18, 2))
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), index=True)
+    captured_at: Mapped[datetime] = mapped_column(TZDateTime, default=func.now(), index=True)
 
     player: Mapped[Player] = relationship(back_populates="events")
 
@@ -129,7 +130,7 @@ class AiOcrResult(Base):
     model_name: Mapped[str] = mapped_column(String(64))
     card_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
 
 class BearEvent(Base):
@@ -138,11 +139,11 @@ class BearEvent(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     alliance_id: Mapped[int] = mapped_column(ForeignKey("alliances.id", ondelete="CASCADE"), index=True)
     trap_id: Mapped[int] = mapped_column(Integer)  # 1 or 2
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     rally_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_damage: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     alliance: Mapped[Alliance] = relationship(back_populates="bear_events")
     scores: Mapped[list["BearScore"]] = relationship(back_populates="bear_event", cascade="all, delete-orphan")
@@ -156,8 +157,8 @@ class BearScore(Base):
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), index=True)
     score: Mapped[int] = mapped_column(Integer)
     rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    recorded_at: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     bear_event: Mapped[BearEvent] = relationship(back_populates="scores")
     player: Mapped[Player] = relationship()
@@ -169,13 +170,13 @@ class FoundryEvent(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     alliance_id: Mapped[int] = mapped_column(ForeignKey("alliances.id", ondelete="CASCADE"), index=True)
     legion_number: Mapped[int] = mapped_column(Integer)  # 1 or 2
-    event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    event_date: Mapped[datetime] = mapped_column(TZDateTime, index=True)
     total_troop_power: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_participants: Mapped[int | None] = mapped_column(Integer, nullable=True)
     actual_participants: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # For results
     won: Mapped[bool | None] = mapped_column(nullable=True)  # For results
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     alliance: Mapped[Alliance] = relationship(back_populates="foundry_events")
     signups: Mapped[list["FoundrySignup"]] = relationship(back_populates="foundry_event", cascade="all, delete-orphan")
@@ -191,8 +192,8 @@ class FoundrySignup(Base):
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), index=True)
     foundry_power: Mapped[int] = mapped_column(Integer)
     voted: Mapped[bool] = mapped_column(default=False)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    recorded_at: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     foundry_event: Mapped[FoundryEvent] = relationship(back_populates="signups")
     player: Mapped[Player] = relationship()
@@ -207,8 +208,8 @@ class FoundryResult(Base):
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), index=True)
     score: Mapped[int] = mapped_column(Integer)
     rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    recorded_at: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     foundry_event: Mapped[FoundryEvent] = relationship(back_populates="results")
     player: Mapped[Player] = relationship()
@@ -219,10 +220,10 @@ class ACEvent(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     alliance_id: Mapped[int] = mapped_column(ForeignKey("alliances.id", ondelete="CASCADE"), index=True)
-    week_start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    week_start_date: Mapped[datetime] = mapped_column(TZDateTime, index=True)
     total_registered: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_power: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     alliance: Mapped[Alliance] = relationship(back_populates="ac_events")
     signups: Mapped[list["ACSignup"]] = relationship(back_populates="ac_event", cascade="all, delete-orphan")
@@ -230,13 +231,14 @@ class ACEvent(Base):
 
 class ACSignup(Base):
     __tablename__ = "ac_signups"
+    __table_args__ = (UniqueConstraint("ac_event_id", "player_id", name="uq_ac_signup"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ac_event_id: Mapped[int] = mapped_column(ForeignKey("ac_events.id", ondelete="CASCADE"), index=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), index=True)
     ac_power: Mapped[int] = mapped_column(Integer)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    recorded_at: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     ac_event: Mapped[ACEvent] = relationship(back_populates="signups")
     player: Mapped[Player] = relationship()
@@ -249,12 +251,12 @@ class ContributionSnapshot(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     alliance_id: Mapped[int] = mapped_column(ForeignKey("alliances.id", ondelete="CASCADE"), index=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), index=True)
-    week_start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    snapshot_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    week_start_date: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    snapshot_date: Mapped[datetime] = mapped_column(TZDateTime, index=True)
     contribution_amount: Mapped[int] = mapped_column(Integer)
     rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    recorded_at: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
     alliance: Mapped[Alliance] = relationship(back_populates="contribution_snapshots")
     player: Mapped[Player] = relationship()
@@ -268,6 +270,6 @@ class AlliancePowerSnapshot(Base):
     alliance_tag: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     total_power: Mapped[int] = mapped_column(Integer)
     rank: Mapped[int] = mapped_column(Integer, index=True)
-    snapshot_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    snapshot_date: Mapped[datetime] = mapped_column(TZDateTime, index=True)
+    recorded_at: Mapped[datetime] = mapped_column(TZDateTime)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())

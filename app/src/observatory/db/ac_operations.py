@@ -154,15 +154,34 @@ def save_ac_signup_ocr(
 
         ac_power = player_data.get("ac_power", 0)
 
-        # Add AC signup
-        add_ac_signup(
-            session,
-            ac_event_id=ac_event.id,
-            player_id=player.id,
-            ac_power=ac_power,
-            recorded_at=recorded_at,
+        # Check if signup already exists
+        existing_signup_stmt = select(models.ACSignup).where(
+            models.ACSignup.ac_event_id == ac_event.id,
+            models.ACSignup.player_id == player.id,
         )
-        signup_count += 1
+        existing_signup = session.execute(existing_signup_stmt).scalar_one_or_none()
+
+        if existing_signup is not None:
+            # Update AC power if new value is higher
+            if ac_power > existing_signup.ac_power:
+                logger.info(
+                    f"Updating AC signup for player {player_name}: "
+                    f"{existing_signup.ac_power} -> {ac_power}"
+                )
+                existing_signup.ac_power = ac_power
+                existing_signup.recorded_at = recorded_at
+            else:
+                logger.debug(f"Skipping duplicate AC signup for player {player_name}")
+        else:
+            # Add new AC signup
+            add_ac_signup(
+                session,
+                ac_event_id=ac_event.id,
+                player_id=player.id,
+                ac_power=ac_power,
+                recorded_at=recorded_at,
+            )
+            signup_count += 1
 
     session.commit()
     logger.info(f"Saved AC signups: {signup_count} signups for event {ac_event.id}")

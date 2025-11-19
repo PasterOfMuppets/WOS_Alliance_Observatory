@@ -224,8 +224,10 @@
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <strong id="time-display-${event.id}">${formatDateTime24(event.started_at)}</strong>
                                         <button onclick="editEventTime(event, ${event.id}, '${event.started_at}')"
-                                                style="padding: 2px 6px; font-size: 12px; cursor: pointer;">
-                                            ✏️ Edit
+                                                class="edit-icon-btn"
+                                                title="Edit event time"
+                                                style="padding: 4px; font-size: 14px; border: none; background: transparent; cursor: pointer;">
+                                            ✏️
                                         </button>
                                     </div>
                                     <div id="time-edit-${event.id}" style="display: none; margin-top: 4px;">

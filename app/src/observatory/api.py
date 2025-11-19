@@ -1,6 +1,7 @@
 """FastAPI application entrypoint that orchestrates API + worker."""
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -518,6 +519,7 @@ async def upload_screenshots(
 ):
     """Bulk upload screenshots for processing."""
     from .screenshot_processor import ScreenshotProcessor
+    from .settings import settings
 
     alliance_id = current_user.default_alliance_id or 1
     processor = ScreenshotProcessor(alliance_id=alliance_id)
@@ -526,7 +528,9 @@ async def upload_screenshots(
     upload_dir.mkdir(exist_ok=True)
 
     results = []
-    for file in files:
+    total_files = len(files)
+
+    for idx, file in enumerate(files):
         # Save file
         file_path = upload_dir / file.filename
         content = await file.read()
@@ -545,6 +549,15 @@ async def upload_screenshots(
                 "message": result["message"],
                 "records_saved": result["records_saved"]
             })
+
+            # Add rate limiting delay if AI OCR is enabled and not the last file
+            # Most screenshot types use AI OCR (only bear_overview uses Tesseract)
+            ai_ocr_used = result["type"] != "bear_overview"
+            is_last_file = (idx == total_files - 1)
+
+            if settings.ai_ocr_enabled and ai_ocr_used and not is_last_file:
+                time.sleep(settings.ai_ocr_rate_limit_delay)
+
         except Exception as e:
             results.append({
                 "filename": file.filename,

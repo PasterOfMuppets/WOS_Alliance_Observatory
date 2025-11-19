@@ -61,14 +61,16 @@ The screen shows:
 - A damage ranking list with player entries
 
 Each player entry shows:
-- Rank number (1, 2, 3, etc., or "Unranked")
+- Rank number (1, 2, 3, etc.)
 - Player name (often with alliance tag like [HEI])
 - Damage Points (large numbers with commas, e.g., "6,442,016,308")
 
+IMPORTANT: Ignore any players marked as "Unranked" - these are screenshot takers who didn't participate.
+
 Your job:
 1. Determine the trap ID (1 or 2) from the title
-2. Extract ALL visible player entries with:
-   - rank (integer, or null if "Unranked")
+2. Extract ONLY RANKED player entries (skip any "Unranked" players) with:
+   - rank (integer 1, 2, 3, etc.)
    - name (string, keep alliance tags like [HEI])
    - damage_points (integer, remove commas)
 
@@ -76,7 +78,7 @@ Return ONLY JSON in this format:
 {
   "trap_id": <1 or 2>,
   "players": [
-    {"rank": <int|null>, "name": "...", "damage_points": <int>}
+    {"rank": <int>, "name": "...", "damage_points": <int>}
   ]
 }
 
