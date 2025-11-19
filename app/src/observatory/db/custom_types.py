@@ -41,11 +41,10 @@ class TZDateTime(TypeDecorator):
     def process_result_value(self, value, dialect):
         """Convert database value to Python datetime."""
         if value is not None and isinstance(value, str):
-            # Parse ISO format string
-            if '+' in value or 'Z' in value:
-                return datetime.fromisoformat(value.replace('Z', '+00:00'))
-            else:
-                # Legacy data without timezone - assume UTC
-                dt = datetime.fromisoformat(value)
+            # Parse ISO format string; ensure trailing Z converted to explicit offset
+            normalized = value.replace('Z', '+00:00')
+            dt = datetime.fromisoformat(normalized)
+            if dt.tzinfo is None:
                 return pytz.UTC.localize(dt)
+            return dt
         return value
