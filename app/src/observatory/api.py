@@ -17,6 +17,17 @@ from .db import models
 from .db.session import get_session
 from .worker import enqueue_pipeline_job, get_worker_state, start_worker, stop_worker
 
+
+def to_iso_string(dt):
+    """Convert datetime-like object to ISO format string."""
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        return dt
+    if hasattr(dt, 'isoformat'):
+        return dt.isoformat()
+    return str(dt)
+
 app = FastAPI(
     title="WOS Alliance Observatory",
     description="API + OCR worker container running inside a single image.",
@@ -378,16 +389,16 @@ async def player_history(
 
     return {
         "power": [
-            {"date": ph.captured_at.isoformat(), "value": ph.power}
+            {"date": to_iso_string(ph.captured_at), "value": ph.power}
             for ph in power_history
         ],
         "furnace": [
-            {"date": fh.captured_at.isoformat(), "value": fh.furnace_level}
+            {"date": to_iso_string(fh.captured_at), "value": fh.furnace_level}
             for fh in furnace_history
         ],
         "bear_scores": [
             {
-                "date": bs.recorded_at.isoformat(),
+                "date": to_iso_string(bs.recorded_at),
                 "score": bs.score,
                 "rank": bs.rank,
                 "trap_id": bs.bear_event.trap_id
@@ -396,8 +407,8 @@ async def player_history(
         ],
         "foundry_results": [
             {
-                "date": fr.recorded_at.isoformat(),
-                "event_date": fr.foundry_event.event_date.isoformat(),
+                "date": to_iso_string(fr.recorded_at),
+                "event_date": to_iso_string(fr.foundry_event.event_date),
                 "legion_id": fr.legion_id,
                 "score": fr.score,
                 "rank": fr.rank
@@ -454,8 +465,8 @@ async def get_bear_events(
         event_data = {
             "id": e.id,
             "trap_id": e.trap_id,
-            "started_at": e.started_at.isoformat(),
-            "ended_at": e.ended_at.isoformat() if e.ended_at else None,
+            "started_at": to_iso_string(e.started_at),
+            "ended_at": to_iso_string(e.ended_at),
             "rally_count": e.rally_count,
             "total_damage": e.total_damage,
             "participant_count": len(e.scores),
@@ -581,7 +592,7 @@ async def get_foundry_events(
             {
                 "id": e.id,
                 "legion_number": e.legion_number,
-                "event_date": e.event_date.isoformat(),
+                "event_date": to_iso_string(e.event_date),
                 "total_troop_power": e.total_troop_power,
                 "max_participants": e.max_participants,
                 "actual_participants": e.actual_participants,
@@ -656,7 +667,7 @@ async def get_foundry_event_results(
 
     return {
         "event_id": event_id,
-        "event_date": event.event_date.isoformat(),
+        "event_date": to_iso_string(event.event_date),
         "legion_number": event.legion_number,
         "total_results": len(sorted_results),
         "results": [
@@ -730,7 +741,7 @@ async def get_foundry_no_shows(
 
     return {
         "event_id": event_id,
-        "event_date": event.event_date.isoformat(),
+        "event_date": to_iso_string(event.event_date),
         "signups_count": len(signup_player_ids),
         "participated_count": len(result_player_ids),
         "no_shows_count": len(no_show_player_ids),
@@ -775,7 +786,7 @@ async def get_ac_events(
         "events": [
             {
                 "id": e.id,
-                "week_start_date": e.week_start_date.isoformat(),
+                "week_start_date": to_iso_string(e.week_start_date),
                 "total_registered": e.total_registered,
                 "total_power": e.total_power,
                 "signups_count": len(e.signups)
@@ -845,10 +856,10 @@ async def get_contribution_snapshots(
         snapshots = session.execute(snapshots_stmt).scalars().all()
 
         result_weeks.append({
-            "week_start": w.isoformat(),
+            "week_start": to_iso_string(w),
             "snapshots": [
                 {
-                    "snapshot_date": s.snapshot_date.isoformat(),
+                    "snapshot_date": to_iso_string(s.snapshot_date),
                     "player_name": s.player.name,
                     "contribution": s.contribution_amount,
                     "rank": s.rank
