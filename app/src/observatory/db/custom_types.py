@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from sqlalchemy import TypeDecorator, DateTime
+from sqlalchemy import TypeDecorator, DateTime, String
 import pytz
 
 
@@ -14,8 +14,15 @@ class TZDateTime(TypeDecorator):
     doesn't always preserve the timezone suffix. This custom type ensures
     all datetimes are stored with explicit timezone info (+00:00 for UTC).
     """
-    impl = DateTime(timezone=False)
+    impl = DateTime
     cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        """Use String type for SQLite to avoid DateTime processor issues."""
+        if dialect.name == 'sqlite':
+            return dialect.type_descriptor(String())
+        else:
+            return dialect.type_descriptor(DateTime(timezone=True))
 
     def process_bind_param(self, value, dialect):
         """Convert Python datetime to database value."""
