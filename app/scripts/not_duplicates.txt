@@ -1,0 +1,5 @@
+# Player pairs that should NOT be merged despite name similarity
+# Format: player_id1,player_id2,reason
+# Lines starting with # are comments
+
+58,94,Mar and Marra are different players (different power levels)

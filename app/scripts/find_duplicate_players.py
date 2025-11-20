@@ -12,8 +12,28 @@ from sqlalchemy.orm import Session
 from observatory.db import models
 from observatory.settings import settings
 
+def load_exclusions():
+    """Load player pairs that should not be merged."""
+    exclusions = set()
+    exclusion_file = Path(__file__).parent / "not_duplicates.txt"
+
+    if exclusion_file.exists():
+        with open(exclusion_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    parts = line.split(',')
+                    if len(parts) >= 2:
+                        try:
+                            id1, id2 = int(parts[0]), int(parts[1])
+                            exclusions.add((min(id1, id2), max(id1, id2)))
+                        except ValueError:
+                            pass
+    return exclusions
+
 def find_duplicates(players, threshold=0.80):
     """Find potential duplicate players based on name similarity."""
+    exclusions = load_exclusions()
     duplicates = []
     checked = set()
 
@@ -24,6 +44,11 @@ def find_duplicates(players, threshold=0.80):
         matches = [player1]
         for player2 in players[i+1:]:
             if player2.id in checked:
+                continue
+
+            # Check if this pair is in the exclusion list
+            pair = (min(player1.id, player2.id), max(player1.id, player2.id))
+            if pair in exclusions:
                 continue
 
             # Calculate similarity
