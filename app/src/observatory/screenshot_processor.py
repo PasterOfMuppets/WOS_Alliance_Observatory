@@ -341,7 +341,7 @@ No extra commentary.
 
         data = self.extractor.extract_players(image_path)
         result = save_alliance_members_ocr(session, self.alliance_id, data, timestamp)
-        return result.get("players_updated", 0)
+        return result.get("players", 0)
 
     def _process_bear_damage(self, session: Session, image_path: Path, timestamp: datetime) -> int:
         """Process bear damage screenshot."""
