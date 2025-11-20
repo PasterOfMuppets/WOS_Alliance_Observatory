@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import models
+from .player_matching import find_player_with_fuzzy_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,7 @@ def save_ac_signup_ocr(
     week_start_date: datetime,
     signup_data: dict[str, Any],
     recorded_at: datetime,
+    screenshot_filename: str | None = None,
 ) -> dict[str, int]:
     """
     Save AC signup OCR results to database.
@@ -110,6 +112,7 @@ def save_ac_signup_ocr(
         week_start_date: Week start date (Monday of AC week, UTC)
         signup_data: Dict with total_registered, total_power, players
         recorded_at: When the screenshot was taken (UTC)
+        screenshot_filename: Optional filename of the screenshot for logging
 
     Returns:
         Dict with counts: {"event_id": N, "signups": M}
@@ -141,15 +144,12 @@ def save_ac_signup_ocr(
         if player_name.startswith("[") and "]" in player_name:
             player_name = player_name.split("]", 1)[1].strip()
 
-        # Find player in database
-        stmt = select(models.Player).where(
-            models.Player.alliance_id == alliance_id,
-            models.Player.name == player_name
+        # Find player in database (with fuzzy matching fallback)
+        player = find_player_with_fuzzy_fallback(
+            session, alliance_id, player_name, name, screenshot_filename
         )
-        player = session.execute(stmt).scalar_one_or_none()
 
         if player is None:
-            logger.warning(f"Player not found: {player_name} (from {name}), skipping AC signup")
             continue
 
         ac_power = player_data.get("ac_power", 0)

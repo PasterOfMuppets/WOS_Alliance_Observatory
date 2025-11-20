@@ -9,6 +9,7 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import Session
 
 from . import models
+from .player_matching import find_player_with_fuzzy_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,7 @@ def save_bear_event_ocr(
     started_at: datetime,
     players_data: list[dict[str, Any]],
     recorded_at: datetime,
+    screenshot_filename: str | None = None,
 ) -> dict[str, int]:
     """
     Save bear event OCR results to database.
@@ -144,6 +146,7 @@ def save_bear_event_ocr(
         started_at: When the bear trap started (UTC)
         players_data: List of player dicts with name, damage_points, rank
         recorded_at: When the screenshot was taken (UTC)
+        screenshot_filename: Optional filename of the screenshot for logging
 
     Returns:
         Dict with counts: {"event_id": N, "scores_added": M, "scores_updated": K, "scores_skipped": L}
@@ -166,15 +169,13 @@ def save_bear_event_ocr(
         if player_name.startswith("[") and "]" in player_name:
             player_name = player_name.split("]", 1)[1].strip()
 
-        # Find player in database
-        stmt = select(models.Player).where(
-            models.Player.alliance_id == alliance_id,
-            models.Player.name == player_name
+        # Find player in database (with fuzzy matching fallback)
+        player = find_player_with_fuzzy_fallback(
+            session, alliance_id, player_name, name, screenshot_filename
         )
-        player = session.execute(stmt).scalar_one_or_none()
 
         if player is None:
-            logger.warning(f"Player not found: {player_name} (from {name}), skipping bear score")
+            scores_skipped += 1
             continue
 
         damage_points = player_data.get("damage_points", 0)
