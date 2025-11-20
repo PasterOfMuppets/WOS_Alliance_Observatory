@@ -14,7 +14,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Fuzzy match threshold (0.0-1.0, higher = stricter)
-FUZZY_MATCH_THRESHOLD = 0.85
+# Lowered from 0.85 to 0.70 to handle special character variations
+# Examples: "WRATH" matches "†-WRATH-†" (71%), "xOsaツKŞĄ" matches "xOsaツKȲA" (75%)
+FUZZY_MATCH_THRESHOLD = 0.70
 
 
 def fuzzy_match_player(
