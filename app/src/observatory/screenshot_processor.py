@@ -107,7 +107,7 @@ No extra commentary.
             logger.error(
                 f"AI classification failed for {image_path.name}: {type(e).__name__}: {e}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "error_type": type(e).__name__,
                     "fallback_method": "heuristic"
                 }
@@ -252,7 +252,7 @@ No extra commentary.
                 logger.warning(
                     f"Unknown screenshot type for {image_path.name}: {screenshot_type}",
                     extra={
-                        "filename": image_path.name,
+                        "screenshot_file": image_path.name,
                         "screenshot_type": screenshot_type,
                         "alliance_id": self.alliance_id
                     }
@@ -262,7 +262,7 @@ No extra commentary.
             logger.error(
                 f"Missing dependency for {screenshot_type}: {e}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "screenshot_type": screenshot_type,
                     "error_type": "ImportError",
                     "alliance_id": self.alliance_id
@@ -274,7 +274,7 @@ No extra commentary.
             logger.error(
                 f"Data validation failed for {image_path.name}: {e}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "screenshot_type": screenshot_type,
                     "error_type": "ValueError",
                     "alliance_id": self.alliance_id
@@ -287,7 +287,7 @@ No extra commentary.
             logger.error(
                 f"Failed to process {image_path.name}: {error_type}: {e}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "screenshot_type": screenshot_type,
                     "error_type": error_type,
                     "alliance_id": self.alliance_id
@@ -321,7 +321,7 @@ No extra commentary.
                 logger.info(
                     f"Deleted processed screenshot: {image_path.name}",
                     extra={
-                        "filename": image_path.name,
+                        "screenshot_file": image_path.name,
                         "alliance_id": self.alliance_id
                     }
                 )
@@ -329,7 +329,7 @@ No extra commentary.
             logger.warning(
                 f"Failed to delete screenshot {image_path.name}: {e}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "error_type": type(e).__name__,
                     "alliance_id": self.alliance_id
                 }
@@ -454,7 +454,7 @@ No extra commentary.
             logger.error(
                 f"Tesseract/pytesseract not available: {e}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "screenshot_type": "bear_overview",
                     "alliance_id": self.alliance_id
                 }
@@ -469,7 +469,7 @@ No extra commentary.
             logger.debug(
                 f"Tesseract extracted {len(text)} characters from {image_path.name}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "text_length": len(text),
                     "alliance_id": self.alliance_id
                 }
@@ -479,7 +479,7 @@ No extra commentary.
             logger.error(
                 f"Tesseract extraction failed for {image_path.name}: {e}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "error_type": type(e).__name__,
                     "alliance_id": self.alliance_id
                 }
@@ -504,7 +504,7 @@ No extra commentary.
                 f"Saved bear overview: Trap {data['trap_id']}, {data.get('rally_count', 'N/A')} rallies, "
                 f"{data.get('total_damage', 'N/A')} damage",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "trap_id": data["trap_id"],
                     "rally_count": data.get("rally_count"),
                     "total_damage": data.get("total_damage"),
@@ -516,7 +516,7 @@ No extra commentary.
             logger.warning(
                 f"Could not extract trap_id from bear overview: {image_path.name}",
                 extra={
-                    "filename": image_path.name,
+                    "screenshot_file": image_path.name,
                     "extracted_data": data,
                     "alliance_id": self.alliance_id
                 }
